@@ -161,7 +161,7 @@ func renderListBody(t style.Theme, m Model, innerWidth int) string {
 			cpu = f.Group.TotalCPU
 			rss = f.Group.TotalRSS
 			cmdLabel = truncate(f.Process.Command, 26) + fmt.Sprintf(" ×%d", len(f.Group.Children)+1)
-			cpuPrefix = "Σ"
+			cpuPrefix = t.Subtle.Render("Σ")
 		}
 
 		bar := renderCPUBarColored(t, cpu, 6, sevName)
