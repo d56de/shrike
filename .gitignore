@@ -1,0 +1,13 @@
+# Binaries
+/shrike
+/dist/
+
+# Coverage
+coverage.out
+*.cover
+
+# Editor
+.vscode/
+.idea/
+*.swp
+.DS_Store
