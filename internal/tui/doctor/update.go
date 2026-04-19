@@ -4,12 +4,19 @@ import (
 	"context"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/d56de/shrike/internal/actions"
 	"github.com/d56de/shrike/internal/core"
 )
 
 // ActionMsg is emitted when an Action.Execute returns, carrying results.
 type ActionMsg struct {
 	Results []core.ActionResult
+}
+
+// SampleDoneMsg carries the parsed call stacks from an async sample run.
+type SampleDoneMsg struct {
+	PID    int
+	Stacks []actions.Stack
 }
 
 // Init implements tea.Model.
@@ -26,6 +33,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case ActionMsg:
 		m.LastResults = msg.Results
 		m.Mode = ModeResults
+		return m, nil
+	case SampleDoneMsg:
+		m.Sampling = false
+		m.SamplePID = msg.PID
+		m.SampleStacks = msg.Stacks
 		return m, nil
 	}
 	return m, nil
@@ -82,7 +94,14 @@ func (m Model) handleListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "i":
 		m.Mode = ModeInfo
 	case "s":
-		m.Mode = ModeSample
+		if m.Cursor >= 0 && m.Cursor < len(m.Findings) {
+			target := m.Findings[m.Cursor].Process
+			m.Mode = ModeSample
+			m.Sampling = true
+			m.SamplePID = target.PID
+			m.SampleStacks = nil
+			return m, runSample(target)
+		}
 	default:
 		// Match against registered actions by Key().
 		r := []rune(msg.String())
@@ -121,5 +140,15 @@ func runAction(a core.Action, targets []core.ProcessInfo) tea.Cmd {
 	return func() tea.Msg {
 		results := a.Execute(context.Background(), targets)
 		return ActionMsg{Results: results}
+	}
+}
+
+// runSample executes the Sample action asynchronously and emits SampleDoneMsg
+// with the parsed call stacks.
+func runSample(target core.ProcessInfo) tea.Cmd {
+	return func() tea.Msg {
+		s := actions.NewSample()
+		_ = s.Execute(context.Background(), []core.ProcessInfo{target})
+		return SampleDoneMsg{PID: target.PID, Stacks: s.Stacks[target.PID]}
 	}
 }

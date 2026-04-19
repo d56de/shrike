@@ -153,9 +153,24 @@ func renderInfo(t style.Theme, m Model) string {
 
 func renderSample(t style.Theme, m Model) string {
 	var b strings.Builder
-	b.WriteString(t.Title.Render("Sample (5s capture — not wired yet, see Task 5.5)") + "\n\n")
-	b.WriteString(t.Subtle.Render("placeholder — running sample…\n"))
-	_ = m // used when Task 5.5 adds real sample rendering
+	if m.Cursor < 0 || m.Cursor >= len(m.Findings) {
+		return ""
+	}
+	p := m.Findings[m.Cursor].Process
+	b.WriteString(t.Title.Render(fmt.Sprintf("Sample: %s (PID %d) · 5s", p.Command, p.PID)) + "\n\n")
+
+	switch {
+	case m.Sampling:
+		b.WriteString(t.Subtle.Render("running sample… (takes ~5 seconds)\n"))
+	case len(m.SampleStacks) == 0:
+		b.WriteString(t.Subtle.Render("no samples parsed — process may have exited or sample(1) failed\n"))
+	default:
+		b.WriteString("Hottest call stacks:\n\n")
+		for i, s := range m.SampleStacks {
+			b.WriteString(fmt.Sprintf("  %d. [%4.1f%%]  %s\n", i+1, s.Percent, s.Top))
+		}
+	}
+
 	b.WriteString("\n" + t.KeyHint.Render("[esc] back"))
 	return t.Border.Render(b.String())
 }

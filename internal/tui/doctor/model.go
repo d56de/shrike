@@ -2,6 +2,7 @@
 package doctor
 
 import (
+	"github.com/d56de/shrike/internal/actions"
 	"github.com/d56de/shrike/internal/core"
 )
 
@@ -30,6 +31,11 @@ type Model struct {
 	LastResults   []core.ActionResult // when Mode == ModeResults
 	Width         int
 	Height        int
+
+	// Sample state (populated by async sample goroutine).
+	Sampling     bool
+	SamplePID    int
+	SampleStacks []actions.Stack
 }
 
 // NewModel constructs a doctor Model ready for Bubble Tea.
