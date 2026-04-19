@@ -21,6 +21,11 @@ linters:
           disabled: false
         - name: package-comments
           disabled: true
+    staticcheck:
+      # Disable the "prefer fmt.Fprintf over WriteString(fmt.Sprintf)" quickfix.
+      # The WriteString+Sprintf pattern reads naturally for complex formatted
+      # output and the micro-performance gain of Fprintf is irrelevant for TUI.
+      checks: ["all", "-QF1012"]
   exclusions:
     rules:
       - path: _test\.go
