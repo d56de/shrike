@@ -1,0 +1,58 @@
+version: 2
+
+project_name: shrike
+
+builds:
+  - id: shrike
+    main: ./cmd/shrike
+    binary: shrike
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w -X main.version={{.Version}}
+
+archives:
+  - formats: [tar.gz]
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      - LICENSE
+      - README.md
+      - CHANGELOG.md
+
+checksum:
+  name_template: "checksums.txt"
+  algorithm: sha256
+
+brews:
+  - name: shrike
+    repository:
+      owner: d56de
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+    homepage: "https://github.com/d56de/shrike"
+    description: "Hunt runaway, zombie, and herd processes on your Mac"
+    license: "MIT"
+    install: |
+      bin.install "shrike"
+    test: |
+      system "#{bin}/shrike", "version"
+
+changelog:
+  use: github
+  filters:
+    exclude:
+      - "^docs:"
+      - "^chore:"
+      - "^test:"
+
+release:
+  github:
+    owner: d56de
+    name: shrike
+  draft: false
+  prerelease: auto
