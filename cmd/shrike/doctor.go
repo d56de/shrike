@@ -11,6 +11,7 @@ import (
 	cfg "github.com/d56de/shrike/internal/config"
 	"github.com/d56de/shrike/internal/core"
 	"github.com/d56de/shrike/internal/detectors"
+	"github.com/d56de/shrike/internal/history"
 	"github.com/d56de/shrike/internal/sysinfo"
 	"github.com/spf13/cobra"
 )
@@ -35,6 +36,19 @@ var doctorCmd = &cobra.Command{
 		findings, err := engine.Run(context.Background())
 		if err != nil {
 			return fmt.Errorf("engine run: %w", err)
+		}
+		elapsed := time.Since(start)
+
+		if c.History.Enabled {
+			_ = history.RotateIfNeeded(c.History.MaxSizeMB, c.History.MaxRotations)
+			if w, werr := history.NewWriter(); werr == nil {
+				_ = w.AppendRun(history.RunMeta{
+					TS:         start,
+					Mode:       "doctor",
+					DurationMS: elapsed.Milliseconds(),
+				}, findings)
+				_ = w.Close()
+			}
 		}
 
 		if doctorJSON {
