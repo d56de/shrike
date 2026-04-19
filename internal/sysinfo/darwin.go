@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/d56/shrike/internal/core"
+	"github.com/d56de/shrike/internal/core"
 	"github.com/shirou/gopsutil/v4/process"
 )
 

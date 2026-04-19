@@ -3,7 +3,7 @@
 **Status:** Draft for review
 **Date:** 2026-04-19
 **Author:** christian (d56)
-**Repo:** github.com/d56/shrike (to be created)
+**Repo:** github.com/d56de/shrike (to be created)
 **License:** MIT
 
 ## 1 — Summary
@@ -525,8 +525,8 @@ On every push/PR: `go vet`, `go test -race -coverprofile`, `golangci-lint run`. 
 
 ### Distribution channels
 
-- **Primary**: `brew install d56/tap/shrike`
-- **Go users**: `go install github.com/d56/shrike/cmd/shrike@latest`
+- **Primary**: `brew install d56de/tap/shrike`
+- **Go users**: `go install github.com/d56de/shrike/cmd/shrike@latest`
 - **Curious testers**: `curl -fsSL <install-script-url> | bash`
 - **v0.2**: Raycast script-commands (`d56/shrike-raycast` or in-tree `scripts/raycast/`)
 

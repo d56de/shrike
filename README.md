@@ -6,7 +6,7 @@ Status: pre-alpha. See `docs/superpowers/specs/2026-04-19-shrike-design.md` for 
 
 ## Install (planned)
 
-    brew install d56/tap/shrike
+    brew install d56de/tap/shrike
 
 ## License
 

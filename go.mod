@@ -1,4 +1,4 @@
-module github.com/d56/shrike
+module github.com/d56de/shrike
 
 go 1.26.2
 
