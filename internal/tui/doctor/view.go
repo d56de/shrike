@@ -149,25 +149,29 @@ func renderListBody(t style.Theme, m Model, innerWidth int) string {
 		sevLabel := strings.ToUpper(sevName[:1]) + sevName[1:]
 		sev := t.Subtle.Render(sevLabel)
 
-		// For herds, show aggregate CPU/RSS + "×N" count instead of
-		// the individual parent process's stats (which misleadingly read
-		// as 0.0% because the parent is just one helper among many).
+		// For herds, show aggregate CPU/RSS + "×N" count and a Σ prefix on
+		// the CPU % so it's visually obvious the number is a sum across
+		// multiple processes (otherwise a row like "PID 75006  304.3% CPU"
+		// misleadingly reads as one process pegging 3 cores).
 		cpu := f.Process.CPUPercent
 		rss := f.Process.RSS
 		cmdLabel := truncate(f.Process.Command, 30)
+		cpuPrefix := " "
 		if f.Group != nil {
 			cpu = f.Group.TotalCPU
 			rss = f.Group.TotalRSS
 			cmdLabel = truncate(f.Process.Command, 26) + fmt.Sprintf(" ×%d", len(f.Group.Children)+1)
+			cpuPrefix = "Σ"
 		}
 
 		bar := renderCPUBarColored(t, cpu, 6, sevName)
 		rssLabel := fmt.Sprintf("%d MB", rss/1024/1024)
 
-		// Row: "◆  ✓ Command            PID ###  ███░░░ 49.0% CPU · 154 MB · 7d 1h  High"
-		row := fmt.Sprintf("%s  %s %-30s  PID %-6d %s %.1f%% CPU · %-7s · %-7s %s",
+		// Row: "◆  ✓ Command            PID ###  ███░░░  49.0% CPU · 154 MB · 7d 1h  High"
+		//      (Σ replaces the leading space when the CPU is an aggregate.)
+		row := fmt.Sprintf("%s  %s %-30s  PID %-6d %s %s%.1f%% CPU · %-7s · %-7s %s",
 			cursor, box, cmdLabel,
-			f.Process.PID, bar, cpu, rssLabel,
+			f.Process.PID, bar, cpuPrefix, cpu, rssLabel,
 			formatElapsedShort(int64(f.Process.ElapsedTime.Seconds())), sev)
 		b.WriteString(pad(row) + "\n")
 
