@@ -3,16 +3,18 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"os"
 	"time"
 
+	tea "github.com/charmbracelet/bubbletea"
+	actions_ "github.com/d56de/shrike/internal/actions"
 	cfg "github.com/d56de/shrike/internal/config"
 	"github.com/d56de/shrike/internal/core"
 	"github.com/d56de/shrike/internal/detectors"
 	"github.com/d56de/shrike/internal/history"
 	"github.com/d56de/shrike/internal/sysinfo"
+	"github.com/d56de/shrike/internal/tui/doctor"
 	"github.com/spf13/cobra"
 )
 
@@ -64,7 +66,20 @@ var doctorCmd = &cobra.Command{
 			return nil
 		}
 
-		return errors.New("interactive TUI not implemented yet; use --json")
+		// Interactive TUI path.
+		acts := []core.Action{
+			actions_.NewInfo(),
+			actions_.NewSample(),
+			actions_.NewKill(),
+			actions_.NewKillImmediate(),
+			actions_.NewRenice(),
+		}
+		model := doctor.NewModel(findings, acts)
+		prog := tea.NewProgram(model, tea.WithAltScreen())
+		if _, err := prog.Run(); err != nil {
+			return fmt.Errorf("tui: %w", err)
+		}
+		return nil
 	},
 }
 
