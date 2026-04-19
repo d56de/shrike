@@ -2,6 +2,8 @@
 package doctor
 
 import (
+	"time"
+
 	"github.com/d56de/shrike/internal/actions"
 	"github.com/d56de/shrike/internal/core"
 	"github.com/d56de/shrike/internal/tui/style"
@@ -33,6 +35,11 @@ type Model struct {
 	Width         int
 	Height        int
 	Theme         style.Theme
+
+	// Status line context (set by the caller before launching the program).
+	Version      string
+	ProcsScanned int
+	RunDuration  time.Duration
 
 	// Sample state (populated by async sample goroutine).
 	Sampling     bool

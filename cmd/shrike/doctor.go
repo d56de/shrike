@@ -35,16 +35,11 @@ var doctorCmd = &cobra.Command{
 
 		engine := buildEngine(c, doctorOnly)
 
-		// If scanning takes longer than 300ms, emit a one-line hint on stderr
-		// so the user knows we're working. Silent for fast scans.
+		// If scanning takes longer than 300ms, show an animated braille spinner
+		// in #8A88C2 on stderr. Silent for fast scans. Cleared before the TUI
+		// opens its alt-screen.
 		done := make(chan struct{})
-		go func() {
-			select {
-			case <-time.After(300 * time.Millisecond):
-				_, _ = fmt.Fprintln(os.Stderr, "shrike: scanning processes…")
-			case <-done:
-			}
-		}()
+		go spinScanning(done)
 
 		start := time.Now()
 		findings, err := engine.Run(context.Background())
@@ -93,6 +88,9 @@ var doctorCmd = &cobra.Command{
 			c.UI.SeverityLowColor,
 		)
 		model := doctor.NewModelWithTheme(findings, acts, theme)
+		model.Version = version
+		model.RunDuration = elapsed
+		model.ProcsScanned = 0 // v0.2: plumb from engine snapshot
 		prog := tea.NewProgram(model, tea.WithAltScreen())
 		if _, err := prog.Run(); err != nil {
 			return fmt.Errorf("tui: %w", err)
@@ -161,6 +159,37 @@ func buildEngine(c cfg.Config, only []string) *core.Engine {
 		Snapshotter: sysinfo.New(),
 		Detectors:   selected,
 		Configs:     configs,
+	}
+}
+
+// spinScanning prints an animated braille spinner + "shrike: scanning
+// processes…" on stderr until done is closed. First frame appears after 300ms
+// to avoid flashing for sub-second scans. Uses the Frame style colour (#8A88C2).
+func spinScanning(done <-chan struct{}) {
+	select {
+	case <-time.After(300 * time.Millisecond):
+	case <-done:
+		return
+	}
+
+	frames := []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
+	spinStyle := style.DefaultTheme().Frame
+
+	tick := time.NewTicker(80 * time.Millisecond)
+	defer tick.Stop()
+
+	i := 0
+	for {
+		select {
+		case <-done:
+			// Clear the line before yielding to Bubble Tea.
+			_, _ = fmt.Fprint(os.Stderr, "\r\x1b[2K")
+			return
+		case <-tick.C:
+			_, _ = fmt.Fprintf(os.Stderr, "\r%s shrike: scanning processes…",
+				spinStyle.Render(frames[i%len(frames)]))
+			i++
+		}
 	}
 }
 
