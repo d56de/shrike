@@ -9,7 +9,11 @@ import (
 
 // View implements tea.Model.
 func (m Model) View() string {
-	t := style.DefaultTheme()
+	t := m.Theme
+	// Allow zero-value Theme (defensive for tests / NewModel via older call sites).
+	if t.Severity == nil {
+		t = style.DefaultTheme()
+	}
 	switch m.Mode {
 	case ModeConfirm:
 		return renderConfirm(t, m)
@@ -29,8 +33,17 @@ func renderList(t style.Theme, m Model) string {
 	var b strings.Builder
 	b.WriteString(t.Title.Render("shrike doctor") + "   " + t.Subtle.Render("macOS · suspicious processes") + "\n\n")
 
+	pathMax := 78
+	if m.Width > 0 && m.Width-8 < pathMax {
+		pathMax = m.Width - 8
+		if pathMax < 20 {
+			pathMax = 20
+		}
+	}
+
 	if len(m.Findings) == 0 {
-		b.WriteString(t.Subtle.Render("No suspicious processes — your Mac looks great.\n"))
+		b.WriteString(t.Subtle.Render("No suspicious processes — your Mac looks great 🎉") + "\n")
+		b.WriteString(t.Subtle.Render("(Lower the thresholds in config.toml if you want shrike to be more picky.)") + "\n")
 	}
 
 	for i, f := range m.Findings {
@@ -52,7 +65,7 @@ func renderList(t style.Theme, m Model) string {
 			cursor, box, emoji, f.Process.Command, f.Process.PID,
 			f.Process.CPUPercent, formatElapsedShort(int64(f.Process.ElapsedTime.Seconds())), sev)
 		b.WriteString(line1 + "\n")
-		line2 := "       " + t.Subtle.Render(truncatePath(f.Process.FullPath, 78))
+		line2 := "       " + t.Subtle.Render(truncatePath(f.Process.FullPath, pathMax))
 		b.WriteString(line2 + "\n")
 		if m.Cursor == i {
 			b.WriteString("       " + t.Subtle.Render(f.Reason) + "\n")

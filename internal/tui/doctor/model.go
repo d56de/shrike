@@ -4,6 +4,7 @@ package doctor
 import (
 	"github.com/d56de/shrike/internal/actions"
 	"github.com/d56de/shrike/internal/core"
+	"github.com/d56de/shrike/internal/tui/style"
 )
 
 // Mode distinguishes the current UI mode (list vs. modal vs. result).
@@ -31,6 +32,7 @@ type Model struct {
 	LastResults   []core.ActionResult // when Mode == ModeResults
 	Width         int
 	Height        int
+	Theme         style.Theme
 
 	// Sample state (populated by async sample goroutine).
 	Sampling     bool
@@ -39,13 +41,20 @@ type Model struct {
 }
 
 // NewModel constructs a doctor Model ready for Bubble Tea.
-func NewModel(findings []core.Finding, actions []core.Action) Model {
+func NewModel(findings []core.Finding, acts []core.Action) Model {
+	return NewModelWithTheme(findings, acts, style.DefaultTheme())
+}
+
+// NewModelWithTheme constructs a doctor Model with an explicit Theme (e.g.
+// driven by user-supplied colours from config).
+func NewModelWithTheme(findings []core.Finding, acts []core.Action, theme style.Theme) Model {
 	return Model{
 		Findings: findings,
-		Actions:  actions,
+		Actions:  acts,
 		Selected: map[int]bool{},
 		Expanded: map[int]bool{},
 		Mode:     ModeList,
+		Theme:    theme,
 	}
 }
 

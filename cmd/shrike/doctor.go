@@ -15,6 +15,7 @@ import (
 	"github.com/d56de/shrike/internal/history"
 	"github.com/d56de/shrike/internal/sysinfo"
 	"github.com/d56de/shrike/internal/tui/doctor"
+	"github.com/d56de/shrike/internal/tui/style"
 	"github.com/spf13/cobra"
 )
 
@@ -34,8 +35,20 @@ var doctorCmd = &cobra.Command{
 
 		engine := buildEngine(c, doctorOnly)
 
+		// If scanning takes longer than 300ms, emit a one-line hint on stderr
+		// so the user knows we're working. Silent for fast scans.
+		done := make(chan struct{})
+		go func() {
+			select {
+			case <-time.After(300 * time.Millisecond):
+				_, _ = fmt.Fprintln(os.Stderr, "shrike: scanning processes…")
+			case <-done:
+			}
+		}()
+
 		start := time.Now()
 		findings, err := engine.Run(context.Background())
+		close(done)
 		if err != nil {
 			return fmt.Errorf("engine run: %w", err)
 		}
@@ -74,7 +87,12 @@ var doctorCmd = &cobra.Command{
 			actions_.NewKillImmediate(),
 			actions_.NewRenice(),
 		}
-		model := doctor.NewModel(findings, acts)
+		theme := style.FromConfig(
+			c.UI.SeverityHighColor,
+			c.UI.SeverityMediumColor,
+			c.UI.SeverityLowColor,
+		)
+		model := doctor.NewModelWithTheme(findings, acts, theme)
 		prog := tea.NewProgram(model, tea.WithAltScreen())
 		if _, err := prog.Run(); err != nil {
 			return fmt.Errorf("tui: %w", err)

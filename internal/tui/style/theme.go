@@ -33,3 +33,20 @@ func DefaultTheme() Theme {
 		},
 	}
 }
+
+// FromConfig returns a theme with severity colours overridden by the given
+// hex strings. Empty strings fall back to DefaultTheme colours.
+func FromConfig(high, medium, low string) Theme {
+	t := DefaultTheme()
+	if high != "" {
+		t.Severity["high"] = lipgloss.NewStyle().Foreground(lipgloss.Color(high))
+		t.Severity["critical"] = lipgloss.NewStyle().Foreground(lipgloss.Color(high)).Bold(true)
+	}
+	if medium != "" {
+		t.Severity["medium"] = lipgloss.NewStyle().Foreground(lipgloss.Color(medium))
+	}
+	if low != "" {
+		t.Severity["low"] = lipgloss.NewStyle().Foreground(lipgloss.Color(low))
+	}
+	return t
+}
