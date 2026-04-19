@@ -91,6 +91,13 @@ var doctorCmd = &cobra.Command{
 		model.Version = version
 		model.RunDuration = elapsed
 		model.ProcsScanned = 0 // v0.2: plumb from engine snapshot
+		model.Engine = engine
+		model.HistoryEnabled = c.History.Enabled
+		model.HistoryConfig = history.WriterConfig{
+			Enabled:      c.History.Enabled,
+			MaxSizeMB:    c.History.MaxSizeMB,
+			MaxRotations: c.History.MaxRotations,
+		}
 		prog := tea.NewProgram(model, tea.WithAltScreen())
 		if _, err := prog.Run(); err != nil {
 			return fmt.Errorf("tui: %w", err)

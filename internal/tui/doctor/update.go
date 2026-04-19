@@ -2,10 +2,12 @@ package doctor
 
 import (
 	"context"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/d56de/shrike/internal/actions"
 	"github.com/d56de/shrike/internal/core"
+	"github.com/d56de/shrike/internal/history"
 )
 
 // ActionMsg is emitted when an Action.Execute returns, carrying results.
@@ -17,6 +19,13 @@ type ActionMsg struct {
 type SampleDoneMsg struct {
 	PID    int
 	Stacks []actions.Stack
+}
+
+// RescanDoneMsg carries the result of an in-TUI rescan.
+type RescanDoneMsg struct {
+	Findings []core.Finding
+	Duration time.Duration
+	Err      error
 }
 
 // Init implements tea.Model.
@@ -38,6 +47,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.Sampling = false
 		m.SamplePID = msg.PID
 		m.SampleStacks = msg.Stacks
+		return m, nil
+	case RescanDoneMsg:
+		m.Rescanning = false
+		if msg.Err == nil {
+			m.Findings = msg.Findings
+			m.RunDuration = msg.Duration
+			m.Selected = map[int]bool{}
+			m.Expanded = map[int]bool{}
+			m.Cursor = 0
+		}
 		return m, nil
 	}
 	return m, nil
@@ -91,6 +110,11 @@ func (m Model) handleListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 	case "left", "h":
 		delete(m.Expanded, m.Cursor)
+	case "R":
+		if m.Engine != nil && !m.Rescanning {
+			m.Rescanning = true
+			return m, runRescan(m.Engine, m.HistoryEnabled, m.HistoryConfig)
+		}
 	case "i":
 		m.Mode = ModeInfo
 	case "s":
@@ -150,5 +174,25 @@ func runSample(target core.ProcessInfo) tea.Cmd {
 		s := actions.NewSample()
 		_ = s.Execute(context.Background(), []core.ProcessInfo{target})
 		return SampleDoneMsg{PID: target.PID, Stacks: s.Stacks[target.PID]}
+	}
+}
+
+// runRescan re-runs the engine and optionally appends the result to the
+// history file. Blocking; intended to be returned as a tea.Cmd.
+func runRescan(engine *core.Engine, historyEnabled bool, hcfg history.WriterConfig) tea.Cmd {
+	return func() tea.Msg {
+		start := time.Now()
+		findings, err := engine.Run(context.Background())
+		dur := time.Since(start)
+		if err == nil && historyEnabled && hcfg.Enabled {
+			_ = history.RotateIfNeeded(hcfg.MaxSizeMB, hcfg.MaxRotations)
+			if w, werr := history.NewWriter(); werr == nil {
+				_ = w.AppendRun(history.RunMeta{
+					TS: start, Mode: "doctor", DurationMS: dur.Milliseconds(),
+				}, findings)
+				_ = w.Close()
+			}
+		}
+		return RescanDoneMsg{Findings: findings, Duration: dur, Err: err}
 	}
 }

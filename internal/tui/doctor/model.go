@@ -6,6 +6,7 @@ import (
 
 	"github.com/d56de/shrike/internal/actions"
 	"github.com/d56de/shrike/internal/core"
+	"github.com/d56de/shrike/internal/history"
 	"github.com/d56de/shrike/internal/tui/style"
 )
 
@@ -40,6 +41,14 @@ type Model struct {
 	Version      string
 	ProcsScanned int
 	RunDuration  time.Duration
+
+	// Engine for in-TUI rescan (R key). Optional — rescan is disabled if nil.
+	Engine         *core.Engine
+	HistoryEnabled bool
+	HistoryConfig  history.WriterConfig
+
+	// Rescan progress state.
+	Rescanning bool
 
 	// Sample state (populated by async sample goroutine).
 	Sampling     bool

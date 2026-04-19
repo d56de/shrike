@@ -101,10 +101,14 @@ func renderListBody(t style.Theme, m Model, innerWidth int) string {
 	if m.RunDuration > 0 {
 		durLabel = fmt.Sprintf("%.2fs", m.RunDuration.Seconds())
 	}
+	statusTail := t.Subtle.Render("(" + durLabel + ")")
+	if m.Rescanning {
+		statusTail = t.Subtle.Render("(rescanning…)")
+	}
 	header := fmt.Sprintf("%s %d suspicious process%s found %s",
 		t.Accent.Render("⏺"),
 		len(m.Findings), plural(len(m.Findings)),
-		t.Subtle.Render("("+durLabel+")"))
+		statusTail)
 	b.WriteString(pad(header) + "\n")
 
 	// Connector line from ⏺ down to first cursor.
@@ -186,7 +190,7 @@ func renderListBody(t style.Theme, m Model, innerWidth int) string {
 	b.WriteString(pad(t.Frame.Render(strings.Repeat("─", innerWidth-4))) + "\n")
 	b.WriteString(pad(t.Frame.Render(fmt.Sprintf("%d selected", len(m.Selected)))) + "\n")
 	b.WriteString(pad("") + "\n")
-	b.WriteString(pad(t.KeyHint.Render("[space] select · [i]nfo · [s]ample · [k]ill · [r]enice · [?] help · [q]uit")) + "\n")
+	b.WriteString(pad(t.KeyHint.Render("[space] select · [i]nfo · [s]ample · [k]ill · [r]enice · [R] rescan · [?] help · [q]uit")) + "\n")
 	return b.String()
 }
 
@@ -362,6 +366,7 @@ func renderHelpBody(t style.Theme) string {
 		{"k", "kill (TERM → KILL)"},
 		{"K", "kill immediately (SIGKILL)"},
 		{"r", "renice +10"},
+		{"R", "rescan (re-run detectors)"},
 		{"?", "this help"},
 		{"q / Esc", "quit / close modal"},
 	}
