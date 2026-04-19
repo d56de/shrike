@@ -1,0 +1,13 @@
+Sampling process 93187 for 5 seconds with 1 millisecond of run time between samples
+Process:         Google Chrome Helper [93187]
+Call graph:
+    5000 Thread_0x1   DispatchQueue_1: com.apple.main-thread
+    + 4700 start  (in dyld) + 0
+    +   4700 main  (in Chrome) + 40
+    +     4600 v8::internal::Compiler::Compile  (in libv8.dylib) + 100
+    +       4400 ScriptRunner::CompileScript  (in libv8.dylib) + 80
+    +         4400 v8::Script::Compile  (in libv8.dylib) + 120
+    +     200 base::MessageLoop::Run  (in libchrome.dylib) + 40
+    +   100 malloc  (in libsystem_malloc.dylib) + 20
+
+Total samples: 5000 (100.0%)
