@@ -48,7 +48,8 @@ type Model struct {
 	HistoryConfig  history.WriterConfig
 
 	// Rescan progress state.
-	Rescanning bool
+	Rescanning   bool
+	SpinnerFrame int
 
 	// Sample state (populated by async sample goroutine).
 	Sampling     bool

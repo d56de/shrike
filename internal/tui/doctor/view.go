@@ -103,7 +103,9 @@ func renderListBody(t style.Theme, m Model, innerWidth int) string {
 	}
 	statusTail := t.Subtle.Render("(" + durLabel + ")")
 	if m.Rescanning {
-		statusTail = t.Subtle.Render("(rescanning…)")
+		frames := []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
+		spin := t.Frame.Render(frames[m.SpinnerFrame%len(frames)])
+		statusTail = spin + " " + t.Subtle.Render("rescanning…")
 	}
 	header := fmt.Sprintf("%s %d suspicious process%s found %s",
 		t.Accent.Render("⏺"),

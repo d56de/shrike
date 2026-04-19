@@ -28,6 +28,16 @@ type RescanDoneMsg struct {
 	Err      error
 }
 
+// spinTickMsg advances the rescan spinner by one frame.
+type spinTickMsg struct{}
+
+// spinTick emits a spinTickMsg after the animation interval.
+func spinTick() tea.Cmd {
+	return tea.Tick(80*time.Millisecond, func(time.Time) tea.Msg {
+		return spinTickMsg{}
+	})
+}
+
 // Init implements tea.Model.
 func (m Model) Init() tea.Cmd { return nil }
 
@@ -50,12 +60,19 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case RescanDoneMsg:
 		m.Rescanning = false
+		m.SpinnerFrame = 0
 		if msg.Err == nil {
 			m.Findings = msg.Findings
 			m.RunDuration = msg.Duration
 			m.Selected = map[int]bool{}
 			m.Expanded = map[int]bool{}
 			m.Cursor = 0
+		}
+		return m, nil
+	case spinTickMsg:
+		if m.Rescanning {
+			m.SpinnerFrame++
+			return m, spinTick()
 		}
 		return m, nil
 	}
@@ -113,7 +130,8 @@ func (m Model) handleListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "R":
 		if m.Engine != nil && !m.Rescanning {
 			m.Rescanning = true
-			return m, runRescan(m.Engine, m.HistoryEnabled, m.HistoryConfig)
+			m.SpinnerFrame = 0
+			return m, tea.Batch(runRescan(m.Engine, m.HistoryEnabled, m.HistoryConfig), spinTick())
 		}
 	case "i":
 		m.Mode = ModeInfo
