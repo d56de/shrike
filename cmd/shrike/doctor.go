@@ -79,11 +79,8 @@ func findingToJSON(ts time.Time, f core.Finding) map[string]any {
 
 // buildEngine assembles the engine with the requested detectors. If only is
 // empty, all registered detectors run.
-//
-// v0.1 partial wiring: Herd detector is not yet implemented.
-// Task 3.3 will add it.
 func buildEngine(c cfg.Config, only []string) *core.Engine {
-	all := []core.Detector{detectors.NewRunaway(), detectors.NewZombie()}
+	all := []core.Detector{detectors.NewRunaway(), detectors.NewZombie(), detectors.NewHerd()}
 	selected := all
 	if len(only) > 0 {
 		wanted := map[string]bool{}
@@ -106,6 +103,10 @@ func buildEngine(c cfg.Config, only []string) *core.Engine {
 		},
 		"zombie": {
 			"min_age": time.Duration(c.Zombie.MinAge),
+		},
+		"herd": {
+			"min_size":            c.Herd.MinSize,
+			"total_cpu_threshold": c.Herd.TotalCPUThreshold,
 		},
 	}
 
