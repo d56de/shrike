@@ -17,11 +17,18 @@ func (m Model) View() string {
 		t = style.DefaultTheme()
 	}
 
-	// Target width: use terminal width if known, otherwise a sensible default.
-	width := m.Width
-	if width < 50 {
-		width = 96
+	// Don't render anything until Bubble Tea has told us the real terminal size.
+	// Rendering a too-wide frame would cause the terminal to hard-wrap every
+	// line, throwing off Bubble Tea's diff renderer and producing duplicate
+	// footer/border artefacts (particularly noticeable with p10k instant-prompt).
+	if m.Width < 40 {
+		if m.Width == 0 {
+			return ""
+		}
+		return "shrike: terminal too narrow (need ≥ 40 columns)"
 	}
+
+	width := m.Width
 	// Inner (content) width = outer - 2 for border | chars, minus 2 for left padding.
 	innerWidth := width - 4
 	if innerWidth < 20 {
