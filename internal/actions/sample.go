@@ -69,16 +69,78 @@ func (s *Sample) Execute(ctx context.Context, targets []core.ProcessInfo) []core
 //
 // i.e. an optional tree-prefix of `+` chars and whitespace, then a count,
 // then a symbol, then " (in <lib>) + <offset>".
-var stackLineRE = regexp.MustCompile(`^[\s+]*(\d+)\s+(\S.*?)\s+\(in\s+[^)]+\)\s*\+\s*\d+$`)
+// Call-graph lines look like:
+//
+//	"      1774 start  (in dyld) + 6992  [0x185f5fda4]"
+//
+// leading indent of spaces and tree "+" chars, a sample count, a symbol,
+// the library in parentheses, a "+ offset", and an optional [0xADDR] suffix
+// present on recent macOS versions.
+var callGraphRE = regexp.MustCompile(`^[\s+]*(\d+)\s+(\S.*?)\s+\(in\s+[^)]+\)\s*\+\s*\d+(\s+\[0x[0-9a-fA-F]+\])?\s*$`)
+
+// Top-of-stack lines in the "Sort by top of stack, same collapsed" section
+// look like:
+//
+//	"        __wait4  (in libsystem_kernel.dylib)        1774"
+//
+// symbol first, then (in lib), then the sample count at the end.
+var topStackRE = regexp.MustCompile(`^\s+(\S.*?)\s+\(in\s+[^)]+\)\s+(\d+)\s*$`)
 
 // parseSampleOutput converts textual sample(1) output into a ranked list of
 // top call stacks by sample count. Returns at most the 3 hottest distinct
-// stacks.
+// stacks. Prefers the "Sort by top of stack" collapsed section when present
+// (macOS writes one whenever any symbol has ≥5 samples); falls back to
+// parsing the raw call-graph tree for short/sparse samples.
 func parseSampleOutput(out string) []Stack {
+	if stacks := parseTopOfStack(out); len(stacks) > 0 {
+		return stacks
+	}
+	return parseCallGraph(out)
+}
+
+type stackEntry struct {
+	sym string
+	n   int
+}
+
+func parseTopOfStack(out string) []Stack {
+	lines := strings.Split(out, "\n")
+	start := -1
+	for i, line := range lines {
+		if strings.HasPrefix(strings.TrimSpace(line), "Sort by top of stack") {
+			start = i + 1
+			break
+		}
+	}
+	if start < 0 {
+		return nil
+	}
+
+	var entries []stackEntry
+	total := 0
+	for _, line := range lines[start:] {
+		m := topStackRE.FindStringSubmatch(line)
+		if m == nil {
+			if strings.TrimSpace(line) == "" {
+				continue
+			}
+			break // next section or EOF
+		}
+		n := 0
+		if _, err := fmt.Sscanf(m[2], "%d", &n); err != nil || n == 0 {
+			continue
+		}
+		entries = append(entries, stackEntry{strings.TrimSpace(m[1]), n})
+		total += n
+	}
+	return rankStacks(entries, total)
+}
+
+func parseCallGraph(out string) []Stack {
 	counts := map[string]int{}
 	total := 0
 	for _, line := range strings.Split(out, "\n") {
-		m := stackLineRE.FindStringSubmatch(line)
+		m := callGraphRE.FindStringSubmatch(line)
 		if m == nil {
 			continue
 		}
@@ -92,21 +154,20 @@ func parseSampleOutput(out string) []Stack {
 			total = n
 		}
 	}
+	entries := make([]stackEntry, 0, len(counts))
+	for k, v := range counts {
+		entries = append(entries, stackEntry{k, v})
+	}
+	return rankStacks(entries, total)
+}
+
+func rankStacks(entries []stackEntry, total int) []Stack {
 	if total == 0 {
 		return nil
 	}
-	type kv struct {
-		sym string
-		n   int
-	}
-	kvs := make([]kv, 0, len(counts))
-	for k, v := range counts {
-		kvs = append(kvs, kv{k, v})
-	}
-	sort.Slice(kvs, func(i, j int) bool { return kvs[i].n > kvs[j].n })
-
+	sort.Slice(entries, func(i, j int) bool { return entries[i].n > entries[j].n })
 	var stacks []Stack
-	for i, x := range kvs {
+	for i, x := range entries {
 		if i >= 3 {
 			break
 		}
