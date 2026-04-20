@@ -2,6 +2,7 @@
 package doctor
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/d56de/shrike/internal/actions"
@@ -78,9 +79,15 @@ func NewModelWithTheme(findings []core.Finding, acts []core.Action, theme style.
 }
 
 // selectedTargets returns processes to operate on: selected entries, or the
-// cursor entry if no selection. For herd findings, expands to every member
-// of the group (parent + children) so kill/renice act on the whole herd,
-// not just the highest-RSS parent we chose to display.
+// cursor entry if no selection. Two transforms:
+//
+//   - Herd findings expand to every member of the group (parent + children).
+//   - Zombie findings redirect to the parent PID: a zombie has already
+//     terminated, so signalling it is a no-op. Killing the parent causes
+//     init to inherit and reap the zombie entry.
+//
+// The final list is de-duplicated by PID so selecting several zombies that
+// share a parent does not signal that parent multiple times.
 func (m Model) selectedTargets() []core.ProcessInfo {
 	var targets []core.ProcessInfo
 	collect := func(i int) {
@@ -88,6 +95,14 @@ func (m Model) selectedTargets() []core.ProcessInfo {
 			return
 		}
 		f := m.Findings[i]
+		if f.Detector == "zombie" {
+			redir := f.Process
+			redir.PID = f.Process.PPID
+			redir.Command = fmt.Sprintf("reap zombie PID %d → parent PID %d",
+				f.Process.PID, f.Process.PPID)
+			targets = append(targets, redir)
+			return
+		}
 		if f.Group != nil {
 			targets = append(targets, f.Group.Parent)
 			targets = append(targets, f.Group.Children...)
@@ -99,8 +114,19 @@ func (m Model) selectedTargets() []core.ProcessInfo {
 		for i := range m.Selected {
 			collect(i)
 		}
-		return targets
+	} else {
+		collect(m.Cursor)
 	}
-	collect(m.Cursor)
-	return targets
+
+	// Dedup by PID — multiple zombies often share one parent.
+	seen := map[int]bool{}
+	unique := targets[:0]
+	for _, t := range targets {
+		if seen[t.PID] {
+			continue
+		}
+		seen[t.PID] = true
+		unique = append(unique, t)
+	}
+	return unique
 }
