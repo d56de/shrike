@@ -33,24 +33,30 @@ func (m Model) View() string {
 	switch m.Mode {
 	case ModeConfirm:
 		title = "Shrike — confirm"
-		body = renderConfirmBody(t, m)
+		body = renderConfirmBody(t, m, innerWidth)
 	case ModeResults:
 		title = "Shrike — results"
-		body = renderResultsBody(t, m)
+		body = renderResultsBody(t, m, innerWidth)
 	case ModeInfo:
 		title = "Shrike — info"
-		body = renderInfoBody(t, m)
+		body = renderInfoBody(t, m, innerWidth)
 	case ModeSample:
 		title = "Shrike — sample"
-		body = renderSampleBody(t, m)
+		body = renderSampleBody(t, m, innerWidth)
 	case ModeHelp:
 		title = "Shrike — help"
-		body = renderHelpBody(t)
+		body = renderHelpBody(t, innerWidth)
 	default:
 		body = renderListBody(t, m, innerWidth)
 	}
 
 	return frame(t, title, body, width)
+}
+
+// footerDivider renders the horizontal rule shown above the keyhint footer
+// of every screen, styled in the same Frame colour as the border.
+func footerDivider(t style.Theme, innerWidth int) string {
+	return pad(t.Frame.Render(strings.Repeat("─", innerWidth-4))) + "\n"
 }
 
 // frame wraps content in a rounded border with an embedded title in the top edge.
@@ -214,7 +220,7 @@ func renderListBody(t style.Theme, m Model, innerWidth int) string {
 	}
 
 	b.WriteString(pad("") + "\n")
-	b.WriteString(pad(t.Frame.Render(strings.Repeat("─", innerWidth-4))) + "\n")
+	b.WriteString(footerDivider(t, innerWidth))
 	b.WriteString(pad(t.Frame.Render(fmt.Sprintf("%d selected", len(m.Selected)))) + "\n")
 	b.WriteString(pad("") + "\n")
 	// Footer: only mention [→] expand if at least one herd finding is present.
@@ -316,7 +322,7 @@ func formatElapsedShort(sec int64) string {
 	return fmt.Sprintf("%dd %dh", hours/24, hours%24)
 }
 
-func renderConfirmBody(t style.Theme, m Model) string {
+func renderConfirmBody(t style.Theme, m Model, innerWidth int) string {
 	a := m.PendingAction
 	if a == nil {
 		return ""
@@ -339,6 +345,8 @@ func renderConfirmBody(t style.Theme, m Model) string {
 	}
 	b.WriteString(pad(t.Gutter.Render("│")) + "\n")
 
+	b.WriteString(pad("") + "\n")
+	b.WriteString(footerDivider(t, innerWidth))
 	b.WriteString(pad("") + "\n")
 	b.WriteString(pad(t.KeyHint.Render("[y] confirm · [n] cancel")) + "\n")
 	return b.String()
@@ -363,7 +371,7 @@ func severityForPID(findings []core.Finding, pid int) string {
 	return "low"
 }
 
-func renderResultsBody(t style.Theme, m Model) string {
+func renderResultsBody(t style.Theme, m Model, innerWidth int) string {
 	var b strings.Builder
 	b.WriteString(pad("") + "\n")
 	for _, r := range m.LastResults {
@@ -374,11 +382,13 @@ func renderResultsBody(t style.Theme, m Model) string {
 		b.WriteString(pad(fmt.Sprintf("%s  PID %-6d  %s", mark, r.PID, r.Message)) + "\n")
 	}
 	b.WriteString(pad("") + "\n")
+	b.WriteString(footerDivider(t, innerWidth))
+	b.WriteString(pad("") + "\n")
 	b.WriteString(pad(t.KeyHint.Render("[any key] back")) + "\n")
 	return b.String()
 }
 
-func renderInfoBody(t style.Theme, m Model) string {
+func renderInfoBody(t style.Theme, m Model, innerWidth int) string {
 	if m.Cursor < 0 || m.Cursor >= len(m.Findings) {
 		return ""
 	}
@@ -407,6 +417,8 @@ func renderInfoBody(t style.Theme, m Model) string {
 		b.WriteString(pad(formatKV(t, r[0], r[1], 12)) + "\n")
 	}
 	b.WriteString(pad("") + "\n")
+	b.WriteString(footerDivider(t, innerWidth))
+	b.WriteString(pad("") + "\n")
 	b.WriteString(pad(t.KeyHint.Render("[esc] back")) + "\n")
 	return b.String()
 }
@@ -422,7 +434,7 @@ func formatKV(t style.Theme, key, value string, keyWidth int) string {
 	return t.Subtle.Render(key) + strings.Repeat(" ", padding) + value
 }
 
-func renderSampleBody(t style.Theme, m Model) string {
+func renderSampleBody(t style.Theme, m Model, innerWidth int) string {
 	if m.Cursor < 0 || m.Cursor >= len(m.Findings) {
 		return ""
 	}
@@ -447,11 +459,13 @@ func renderSampleBody(t style.Theme, m Model) string {
 	}
 
 	b.WriteString(pad("") + "\n")
+	b.WriteString(footerDivider(t, innerWidth))
+	b.WriteString(pad("") + "\n")
 	b.WriteString(pad(t.KeyHint.Render("[esc] back")) + "\n")
 	return b.String()
 }
 
-func renderHelpBody(t style.Theme) string {
+func renderHelpBody(t style.Theme, innerWidth int) string {
 	items := [][2]string{
 		{"↑/↓ j/k", "navigate"},
 		{"Space", "select / deselect"},
@@ -470,6 +484,8 @@ func renderHelpBody(t style.Theme) string {
 	for _, it := range items {
 		b.WriteString(pad(formatKV(t, it[0], it[1], 12)) + "\n")
 	}
+	b.WriteString(pad("") + "\n")
+	b.WriteString(footerDivider(t, innerWidth))
 	b.WriteString(pad("") + "\n")
 	b.WriteString(pad(t.KeyHint.Render("[esc] back")) + "\n")
 	return b.String()
