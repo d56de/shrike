@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/d56de/shrike/internal/core"
 	"github.com/d56de/shrike/internal/tui/style"
 )
 
@@ -186,6 +187,27 @@ func renderListBody(t style.Theme, m Model, innerWidth int) string {
 			b.WriteString(pad(t.Gutter.Render("│")+"   "+t.Subtle.Render(f.Reason)) + "\n")
 		}
 
+		// Herd expansion — list all members when user pressed [→].
+		if f.Group != nil && m.Expanded[i] {
+			members := make([]core.ProcessInfo, 0, len(f.Group.Children)+1)
+			members = append(members, f.Group.Parent)
+			members = append(members, f.Group.Children...)
+			for j, child := range members {
+				branch := "├"
+				if j == len(members)-1 {
+					branch = "└"
+				}
+				line := fmt.Sprintf("%s %s PID %-6d  %.1f%% CPU · %d MB · %s",
+					t.Gutter.Render(branch),
+					t.Subtle.Render("─"),
+					child.PID,
+					child.CPUPercent,
+					child.RSS/1024/1024,
+					formatElapsedShort(int64(child.ElapsedTime.Seconds())))
+				b.WriteString(pad(t.Gutter.Render("│")+"   "+t.Subtle.Render(line)) + "\n")
+			}
+		}
+
 		// Connector between entries (except after the last).
 		if i < len(m.Findings)-1 {
 			b.WriteString(pad(t.Gutter.Render("│")) + "\n")
@@ -196,7 +218,7 @@ func renderListBody(t style.Theme, m Model, innerWidth int) string {
 	b.WriteString(pad(t.Frame.Render(strings.Repeat("─", innerWidth-4))) + "\n")
 	b.WriteString(pad(t.Frame.Render(fmt.Sprintf("%d selected", len(m.Selected)))) + "\n")
 	b.WriteString(pad("") + "\n")
-	b.WriteString(pad(t.KeyHint.Render("[space] select · [i]nfo · [s]ample · [k]ill · [r]enice · [R] rescan · [?] help · [q]uit")) + "\n")
+	b.WriteString(pad(t.KeyHint.Render("[↑/↓] navigate · [space] select · [→] expand · [i]nfo · [s]ample · [k]ill · [r]enice · [R] rescan · [?] help · [q]uit")) + "\n")
 	return b.String()
 }
 
@@ -318,23 +340,44 @@ func renderInfoBody(t style.Theme, m Model) string {
 	if m.Cursor < 0 || m.Cursor >= len(m.Findings) {
 		return ""
 	}
-	p := m.Findings[m.Cursor].Process
+	f := m.Findings[m.Cursor]
+	p := f.Process
+
+	bar := renderCPUBarColored(t, p.CPUPercent, 6, f.Severity.String())
+
+	rows := [][2]string{
+		{"Command:", p.FullPath},
+		{"Args:", strings.Join(p.Args, " ")},
+		{"User:", p.User},
+		{"Parent:", fmt.Sprintf("PID %d", p.PPID)},
+		{"Started:", fmt.Sprintf("%s (%s ago)", p.StartedAt.Format("2006-01-02 15:04:05"),
+			formatElapsedShort(int64(p.ElapsedTime.Seconds())))},
+		{"State:", p.State.String()},
+		{"Nice:", fmt.Sprintf("%d", p.Nice)},
+		{"CPU:", fmt.Sprintf("%s  %.1f%%", bar, p.CPUPercent)},
+		{"RSS:", fmt.Sprintf("%d MB", p.RSS/1024/1024)},
+		{"VSZ:", fmt.Sprintf("%d MB", p.VSZ/1024/1024)},
+	}
+
 	var b strings.Builder
 	b.WriteString(pad("") + "\n")
-	b.WriteString(pad(fmt.Sprintf("Command:  %s", p.FullPath)) + "\n")
-	b.WriteString(pad(fmt.Sprintf("Args:     %s", strings.Join(p.Args, " "))) + "\n")
-	b.WriteString(pad(fmt.Sprintf("User:     %s", p.User)) + "\n")
-	b.WriteString(pad(fmt.Sprintf("Parent:   PID %d", p.PPID)) + "\n")
-	b.WriteString(pad(fmt.Sprintf("Started:  %s (%s ago)", p.StartedAt.Format("2006-01-02 15:04:05"),
-		formatElapsedShort(int64(p.ElapsedTime.Seconds())))) + "\n")
-	b.WriteString(pad(fmt.Sprintf("State:    %s", p.State)) + "\n")
-	b.WriteString(pad(fmt.Sprintf("Nice:     %d", p.Nice)) + "\n")
-	b.WriteString(pad(fmt.Sprintf("CPU:      %.1f%%", p.CPUPercent)) + "\n")
-	b.WriteString(pad(fmt.Sprintf("RSS:      %d MB", p.RSS/1024/1024)) + "\n")
-	b.WriteString(pad(fmt.Sprintf("VSZ:      %d MB", p.VSZ/1024/1024)) + "\n")
+	for _, r := range rows {
+		b.WriteString(pad(formatKV(t, r[0], r[1], 12)) + "\n")
+	}
 	b.WriteString(pad("") + "\n")
 	b.WriteString(pad(t.KeyHint.Render("[esc] back")) + "\n")
 	return b.String()
+}
+
+// formatKV renders a key/value row with the key styled Subtle and padded to
+// keyWidth visible cells so the value column aligns across rows regardless
+// of key length or ANSI escape codes in the styled output.
+func formatKV(t style.Theme, key, value string, keyWidth int) string {
+	padding := keyWidth - lipgloss.Width(key)
+	if padding < 0 {
+		padding = 0
+	}
+	return t.Subtle.Render(key) + strings.Repeat(" ", padding) + value
 }
 
 func renderSampleBody(t style.Theme, m Model) string {
@@ -379,7 +422,7 @@ func renderHelpBody(t style.Theme) string {
 	var b strings.Builder
 	b.WriteString(pad("") + "\n")
 	for _, it := range items {
-		b.WriteString(pad(fmt.Sprintf("%-12s  %s", t.KeyHint.Render(it[0]), it[1])) + "\n")
+		b.WriteString(pad(formatKV(t, it[0], it[1], 12)) + "\n")
 	}
 	b.WriteString(pad("") + "\n")
 	b.WriteString(pad(t.KeyHint.Render("[esc] back")) + "\n")
