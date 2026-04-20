@@ -499,7 +499,7 @@ func renderSampleBody(t style.Theme, m Model, innerWidth int) string {
 
 func renderHelpBody(t style.Theme, innerWidth int) string {
 	items := [][2]string{
-		{"↑/↓ j/k", "navigate"},
+		{"↑/↓", "navigate"},
 		{"Space", "select / deselect"},
 		{"→/←", "expand/collapse herd"},
 		{"i", "info modal"},

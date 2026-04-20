@@ -107,12 +107,14 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) handleListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	// Arrow keys for navigation only — vim-style j/k/h/l would clash with the
+	// [k]ill / [j] (unused) / [h]/[l] action key dispatch below.
 	switch msg.String() {
-	case "up", "k":
+	case "up":
 		if m.Cursor > 0 {
 			m.Cursor--
 		}
-	case "down", "j":
+	case "down":
 		if m.Cursor < len(m.Findings)-1 {
 			m.Cursor++
 		}
@@ -122,11 +124,11 @@ func (m Model) handleListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		} else {
 			m.Selected[m.Cursor] = true
 		}
-	case "right", "l":
+	case "right":
 		if m.Cursor < len(m.Findings) && m.Findings[m.Cursor].Group != nil {
 			m.Expanded[m.Cursor] = true
 		}
-	case "left", "h":
+	case "left":
 		delete(m.Expanded, m.Cursor)
 	case "R":
 		if m.Engine != nil && !m.Rescanning {
