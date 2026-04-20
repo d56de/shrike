@@ -106,6 +106,14 @@ func nonEmpty(s, fallback string) string {
 	return s
 }
 
+// shrikeLogo is the ASCII-art logo rendered at the top of the main screen.
+const shrikeLogo = `███████╗██╗  ██╗██████╗ ██╗██╗  ██╗███████╗
+██╔════╝██║  ██║██╔══██╗██║██║ ██╔╝██╔════╝
+███████╗███████║██████╔╝██║█████╔╝ █████╗
+╚════██║██╔══██║██╔══██╗██║██╔═██╗ ██╔══╝
+███████║██║  ██║██║  ██║██║██║  ██╗███████╗
+╚══════╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝╚═╝  ╚═╝╚══════╝`
+
 // renderListBody returns the inner body (without frame) for the main doctor list.
 // innerWidth is the target usable width inside the frame (excluding │ borders).
 func renderListBody(t style.Theme, m Model, innerWidth int) string {
@@ -113,6 +121,14 @@ func renderListBody(t style.Theme, m Model, innerWidth int) string {
 
 	// Leading blank padding (top inner margin).
 	b.WriteString(pad("") + "\n")
+
+	// Fancy logo — skip on terminals too narrow to show it cleanly.
+	if innerWidth >= 46 {
+		for _, line := range strings.Split(shrikeLogo, "\n") {
+			b.WriteString(pad(t.Frame.Render(line)) + "\n")
+		}
+		b.WriteString(pad("") + "\n")
+	}
 
 	// Status header: "⏺ N suspicious processes found (X.XXs)"
 	durLabel := "—"
