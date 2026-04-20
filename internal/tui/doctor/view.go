@@ -401,14 +401,18 @@ func renderSampleBody(t style.Theme, m Model) string {
 
 	switch {
 	case m.Sampling:
-		b.WriteString(pad(t.Subtle.Render("running sample… (takes ~5 seconds)")) + "\n")
+		frames := []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
+		spin := t.Frame.Render(frames[m.SpinnerFrame%len(frames)])
+		b.WriteString(pad(spin+" "+t.Subtle.Render("running sample… (takes ~5 seconds)")) + "\n")
 	case len(m.SampleStacks) == 0:
 		b.WriteString(pad(t.Subtle.Render("no samples parsed — process may have exited or sample(1) failed")) + "\n")
 	default:
 		b.WriteString(pad("Hottest call stacks:") + "\n")
 		b.WriteString(pad("") + "\n")
+		sevName := m.Findings[m.Cursor].Severity.String()
 		for i, s := range m.SampleStacks {
-			b.WriteString(pad(fmt.Sprintf("%d. [%4.1f%%]  %s", i+1, s.Percent, s.Top)) + "\n")
+			bar := renderCPUBarColored(t, s.Percent, 6, sevName)
+			b.WriteString(pad(fmt.Sprintf("%d. %s  %4.1f%%  %s", i+1, bar, s.Percent, s.Top)) + "\n")
 		}
 	}
 

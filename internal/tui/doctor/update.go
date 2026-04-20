@@ -55,6 +55,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case SampleDoneMsg:
 		m.Sampling = false
+		m.SpinnerFrame = 0
 		m.SamplePID = msg.PID
 		m.SampleStacks = msg.Stacks
 		return m, nil
@@ -70,7 +71,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 	case spinTickMsg:
-		if m.Rescanning {
+		if m.Rescanning || m.Sampling {
 			m.SpinnerFrame++
 			return m, spinTick()
 		}
@@ -140,9 +141,10 @@ func (m Model) handleListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			target := m.Findings[m.Cursor].Process
 			m.Mode = ModeSample
 			m.Sampling = true
+			m.SpinnerFrame = 0
 			m.SamplePID = target.PID
 			m.SampleStacks = nil
-			return m, runSample(target)
+			return m, tea.Batch(runSample(target), spinTick())
 		}
 	default:
 		// Match against registered actions by Key().
