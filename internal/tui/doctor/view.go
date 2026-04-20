@@ -45,6 +45,13 @@ func (m Model) View() string {
 		}
 		title = "Shrike — " + name
 		body = renderConfirmBody(t, m, innerWidth)
+	case ModeRunning:
+		name := "running"
+		if m.PendingAction != nil {
+			name = m.PendingAction.Name()
+		}
+		title = "Shrike — " + name
+		body = renderRunningBody(t, m, innerWidth)
 	case ModeResults:
 		title = "Shrike — results"
 		body = renderResultsBody(t, m, innerWidth)
@@ -401,6 +408,38 @@ func severityForPID(findings []core.Finding, pid int) string {
 		}
 	}
 	return "low"
+}
+
+func renderRunningBody(t style.Theme, m Model, innerWidth int) string {
+	var b strings.Builder
+	b.WriteString(pad("") + "\n")
+
+	frames := []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
+	spin := t.Frame.Render(frames[m.SpinnerFrame%len(frames)])
+
+	actionName := "action"
+	if m.PendingAction != nil {
+		actionName = m.PendingAction.Name()
+	}
+	targets := m.selectedTargets()
+	b.WriteString(pad(spin+"  "+t.Subtle.Render(fmt.Sprintf("running %s on %d process(es)…",
+		actionName, len(targets)))) + "\n")
+	b.WriteString(pad(t.Gutter.Render("│")) + "\n")
+
+	for _, p := range targets {
+		sevName := severityForPID(m.Findings, p.PID)
+		cursor := t.CursorInactive.Render("◇")
+		bar := renderCPUBarColored(t, p.CPUPercent, 6, sevName)
+		line := fmt.Sprintf("%s  %-30s  PID %-6d %s %.1f%% CPU",
+			cursor, truncate(p.Command, 30), p.PID, bar, p.CPUPercent)
+		b.WriteString(pad(line) + "\n")
+	}
+
+	b.WriteString(pad("") + "\n")
+	b.WriteString(footerDivider(t, innerWidth))
+	b.WriteString(pad("") + "\n")
+	b.WriteString(pad(t.KeyHint.Render("please wait — kill uses SIGTERM with 3s escalation")) + "\n")
+	return b.String()
 }
 
 func renderResultsBody(t style.Theme, m Model, innerWidth int) string {

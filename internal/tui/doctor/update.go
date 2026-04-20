@@ -52,6 +52,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case ActionMsg:
 		m.LastResults = msg.Results
 		m.Mode = ModeResults
+		m.ActionRunning = false
+		// Silently rescan so the list is up-to-date when the user dismisses
+		// the Results modal. Reuses the existing runRescan plumbing; the
+		// RescanDoneMsg handler updates Findings without changing Mode.
+		if m.Engine != nil {
+			return m, tea.Batch(runRescan(m.Engine, m.HistoryEnabled, m.HistoryConfig), spinTick())
+		}
 		return m, nil
 	case SampleDoneMsg:
 		m.Sampling = false
@@ -61,17 +68,21 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case RescanDoneMsg:
 		m.Rescanning = false
-		m.SpinnerFrame = 0
+		if m.Mode != ModeResults {
+			m.SpinnerFrame = 0
+		}
 		if msg.Err == nil {
 			m.Findings = msg.Findings
 			m.RunDuration = msg.Duration
 			m.Selected = map[int]bool{}
 			m.Expanded = map[int]bool{}
-			m.Cursor = 0
+			if m.Cursor >= len(m.Findings) {
+				m.Cursor = 0
+			}
 		}
 		return m, nil
 	case spinTickMsg:
-		if m.Rescanning || m.Sampling {
+		if m.Rescanning || m.Sampling || m.ActionRunning {
 			m.SpinnerFrame++
 			return m, spinTick()
 		}
@@ -98,6 +109,9 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.handleListKey(msg)
 	case ModeConfirm:
 		return m.handleConfirmKey(msg)
+	case ModeRunning:
+		// Ignore all key input while an action is in flight.
+		return m, nil
 	case ModeResults, ModeInfo, ModeSample, ModeHelp:
 		// Any key returns to list.
 		m.Mode = ModeList
@@ -173,8 +187,10 @@ func (m Model) handleConfirmKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "y", "enter":
 		action := m.PendingAction
 		targets := m.selectedTargets()
-		m.Mode = ModeList
-		return m, runAction(action, targets)
+		m.Mode = ModeRunning
+		m.ActionRunning = true
+		m.SpinnerFrame = 0
+		return m, tea.Batch(runAction(action, targets), spinTick())
 	case "n":
 		m.Mode = ModeList
 		return m, nil
