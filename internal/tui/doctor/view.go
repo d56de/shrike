@@ -323,14 +323,44 @@ func renderConfirmBody(t style.Theme, m Model) string {
 	}
 	var b strings.Builder
 	b.WriteString(pad("") + "\n")
-	b.WriteString(pad(a.Confirm()) + "\n")
-	b.WriteString(pad("") + "\n")
+
+	// Header: ⏺ status marker + action question.
+	b.WriteString(pad(t.Accent.Render("⏺")+"  "+a.Confirm()) + "\n")
+	b.WriteString(pad(t.Gutter.Render("│")) + "\n")
+
+	// One row per target, styled like a main-list entry.
 	for _, p := range m.selectedTargets() {
-		b.WriteString(pad(fmt.Sprintf("%s  PID %d  %.1f%% CPU", p.Command, p.PID, p.CPUPercent)) + "\n")
+		sevName := severityForPID(m.Findings, p.PID)
+		cursor := t.Cursor.Render("◆")
+		bar := renderCPUBarColored(t, p.CPUPercent, 6, sevName)
+		line := fmt.Sprintf("%s  %-30s  PID %-6d %s %.1f%% CPU",
+			cursor, truncate(p.Command, 30), p.PID, bar, p.CPUPercent)
+		b.WriteString(pad(line) + "\n")
 	}
+	b.WriteString(pad(t.Gutter.Render("│")) + "\n")
+
 	b.WriteString(pad("") + "\n")
 	b.WriteString(pad(t.KeyHint.Render("[y] confirm · [n] cancel")) + "\n")
 	return b.String()
+}
+
+// severityForPID looks up the severity label associated with a PID across the
+// current findings (including herd children). Falls back to "low" if the PID
+// isn't tracked.
+func severityForPID(findings []core.Finding, pid int) string {
+	for _, f := range findings {
+		if f.Process.PID == pid {
+			return f.Severity.String()
+		}
+		if f.Group != nil {
+			for _, c := range f.Group.Children {
+				if c.PID == pid {
+					return f.Severity.String()
+				}
+			}
+		}
+	}
+	return "low"
 }
 
 func renderResultsBody(t style.Theme, m Model) string {
