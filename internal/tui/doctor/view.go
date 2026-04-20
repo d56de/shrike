@@ -32,7 +32,11 @@ func (m Model) View() string {
 	var body string
 	switch m.Mode {
 	case ModeConfirm:
-		title = "Shrike — confirm"
+		name := "confirm"
+		if m.PendingAction != nil {
+			name = m.PendingAction.Name()
+		}
+		title = "Shrike — " + name
 		body = renderConfirmBody(t, m, innerWidth)
 	case ModeResults:
 		title = "Shrike — results"
@@ -334,14 +338,19 @@ func renderConfirmBody(t style.Theme, m Model, innerWidth int) string {
 	b.WriteString(pad(t.Accent.Render("⏺")+"  "+a.Confirm()) + "\n")
 	b.WriteString(pad(t.Gutter.Render("│")) + "\n")
 
-	// One row per target, styled like a main-list entry.
-	for _, p := range m.selectedTargets() {
+	// One row per target, styled like a main-list entry, with a gutter
+	// connector line between rows so it visually reads as a small tree.
+	targets := m.selectedTargets()
+	for i, p := range targets {
 		sevName := severityForPID(m.Findings, p.PID)
 		cursor := t.Cursor.Render("◆")
 		bar := renderCPUBarColored(t, p.CPUPercent, 6, sevName)
 		line := fmt.Sprintf("%s  %-30s  PID %-6d %s %.1f%% CPU",
 			cursor, truncate(p.Command, 30), p.PID, bar, p.CPUPercent)
 		b.WriteString(pad(line) + "\n")
+		if i < len(targets)-1 {
+			b.WriteString(pad(t.Gutter.Render("│")) + "\n")
+		}
 	}
 	b.WriteString(pad(t.Gutter.Render("│")) + "\n")
 
