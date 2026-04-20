@@ -406,13 +406,27 @@ func severityForPID(findings []core.Finding, pid int) string {
 func renderResultsBody(t style.Theme, m Model, innerWidth int) string {
 	var b strings.Builder
 	b.WriteString(pad("") + "\n")
+
+	ok, failed := 0, 0
 	for _, r := range m.LastResults {
-		mark := "✓"
 		if r.Err != nil {
-			mark = "✗"
+			failed++
+		} else {
+			ok++
+		}
+	}
+	summary := fmt.Sprintf("%d succeeded · %d failed", ok, failed)
+	b.WriteString(pad(t.Accent.Render("⏺")+"  "+summary) + "\n")
+	b.WriteString(pad(t.Gutter.Render("│")) + "\n")
+
+	for _, r := range m.LastResults {
+		mark := t.CheckboxOn.Render("✓")
+		if r.Err != nil {
+			mark = t.Severity["high"].Render("✗")
 		}
 		b.WriteString(pad(fmt.Sprintf("%s  PID %-6d  %s", mark, r.PID, r.Message)) + "\n")
 	}
+
 	b.WriteString(pad("") + "\n")
 	b.WriteString(footerDivider(t, innerWidth))
 	b.WriteString(pad("") + "\n")

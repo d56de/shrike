@@ -76,19 +76,29 @@ func NewModelWithTheme(findings []core.Finding, acts []core.Action, theme style.
 }
 
 // selectedTargets returns processes to operate on: selected entries, or the
-// cursor entry if no selection.
+// cursor entry if no selection. For herd findings, expands to every member
+// of the group (parent + children) so kill/renice act on the whole herd,
+// not just the highest-RSS parent we chose to display.
 func (m Model) selectedTargets() []core.ProcessInfo {
 	var targets []core.ProcessInfo
+	collect := func(i int) {
+		if i < 0 || i >= len(m.Findings) {
+			return
+		}
+		f := m.Findings[i]
+		if f.Group != nil {
+			targets = append(targets, f.Group.Parent)
+			targets = append(targets, f.Group.Children...)
+			return
+		}
+		targets = append(targets, f.Process)
+	}
 	if len(m.Selected) > 0 {
 		for i := range m.Selected {
-			if i >= 0 && i < len(m.Findings) {
-				targets = append(targets, m.Findings[i].Process)
-			}
+			collect(i)
 		}
 		return targets
 	}
-	if m.Cursor >= 0 && m.Cursor < len(m.Findings) {
-		targets = append(targets, m.Findings[m.Cursor].Process)
-	}
+	collect(m.Cursor)
 	return targets
 }
