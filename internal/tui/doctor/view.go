@@ -193,13 +193,12 @@ func renderListBody(t style.Theme, m Model, innerWidth int) string {
 			members = append(members, f.Group.Parent)
 			members = append(members, f.Group.Children...)
 			for j, child := range members {
-				branch := "├"
+				branch := "├─"
 				if j == len(members)-1 {
-					branch = "└"
+					branch = "└─"
 				}
-				line := fmt.Sprintf("%s %s PID %-6d  %.1f%% CPU · %d MB · %s",
+				line := fmt.Sprintf("%s PID %-6d  %.1f%% CPU · %d MB · %s",
 					t.Gutter.Render(branch),
-					t.Subtle.Render("─"),
 					child.PID,
 					child.CPUPercent,
 					child.RSS/1024/1024,
@@ -218,7 +217,20 @@ func renderListBody(t style.Theme, m Model, innerWidth int) string {
 	b.WriteString(pad(t.Frame.Render(strings.Repeat("─", innerWidth-4))) + "\n")
 	b.WriteString(pad(t.Frame.Render(fmt.Sprintf("%d selected", len(m.Selected)))) + "\n")
 	b.WriteString(pad("") + "\n")
-	b.WriteString(pad(t.KeyHint.Render("[↑/↓] navigate · [space] select · [→] expand · [i]nfo · [s]ample · [k]ill · [r]enice · [R] rescan · [?] help · [q]uit")) + "\n")
+	// Footer: only mention [→] expand if at least one herd finding is present.
+	hasHerd := false
+	for _, f := range m.Findings {
+		if f.Group != nil {
+			hasHerd = true
+			break
+		}
+	}
+	footer := "[↑/↓] navigate · [space] select"
+	if hasHerd {
+		footer += " · [→] expand"
+	}
+	footer += " · [i]nfo · [s]ample · [k]ill · [r]enice · [R] rescan · [?] help · [q]uit"
+	b.WriteString(pad(t.KeyHint.Render(footer)) + "\n")
 	return b.String()
 }
 
