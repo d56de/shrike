@@ -10,8 +10,8 @@ Set Height 720
 Set TypingSpeed 50ms
 Set Theme "Catppuccin Mocha"
 
-# Assume `shrike` is on PATH (or run from repo root with `./shrike`).
-Type "shrike doctor"
+# Run from repo root so the freshly built binary is picked up.
+Type "./shrike doctor"
 Enter
 Sleep 2s
 
