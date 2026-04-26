@@ -126,7 +126,9 @@ const shrikeLogo = `███████╗██╗  ██╗█████�
 func renderListBody(t style.Theme, m Model, innerWidth int) string {
 	var b strings.Builder
 
-	// Leading blank padding (top inner margin).
+	// Leading blank padding (top inner margin) — two lines so the ASCII logo
+	// has breathing room from the frame border.
+	b.WriteString(pad("") + "\n")
 	b.WriteString(pad("") + "\n")
 
 	// Fancy logo — skip on terminals too narrow to show it cleanly.

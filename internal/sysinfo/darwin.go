@@ -6,12 +6,24 @@ package sysinfo
 import (
 	"context"
 	"fmt"
+	"os"
 	"path/filepath"
 	"time"
 
 	"github.com/d56de/shrike/internal/core"
 	"github.com/shirou/gopsutil/v4/process"
 )
+
+// anonymizeUser controls whether real usernames are replaced with a placeholder.
+// Enabled when SHRIKE_ANONYMIZE_USER is set to a truthy value — used for demos
+// and screenshots so personal account names don't leak into shared artifacts.
+var anonymizeUser = func() bool {
+	switch os.Getenv("SHRIKE_ANONYMIZE_USER") {
+	case "1", "true", "yes":
+		return true
+	}
+	return false
+}()
 
 // Provider implements core.Snapshotter for macOS.
 type Provider struct{}
@@ -44,7 +56,11 @@ func convert(ctx context.Context, p *process.Process) (core.ProcessInfo, error) 
 		pi.PPID = int(v)
 	}
 	if v, err := p.UsernameWithContext(ctx); err == nil {
-		pi.User = v
+		if anonymizeUser {
+			pi.User = "user"
+		} else {
+			pi.User = v
+		}
 	}
 	if v, err := p.ExeWithContext(ctx); err == nil {
 		pi.FullPath = v
