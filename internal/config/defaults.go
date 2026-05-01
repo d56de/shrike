@@ -16,11 +16,16 @@ func DefaultConfig() Config {
 		},
 		Zombie: ZombieConfig{
 			MinAge: Duration(5 * time.Minute),
+			// Long-lived helpers whose parent is a real GUI app — reaping
+			// them via parent-kill would terminate the user's running
+			// session. Add new bad neighbours here as they show up.
+			Ignore: []string{"AdpSDKUtil", "AdpFusionMan", "AdSSO"},
 		},
 		Herd: HerdConfig{
 			MinSize:           5,
 			TotalCPUThreshold: 30.0,
 			KnownBadActors:    []string{},
+			Ignore:            []string{},
 		},
 		History: HistoryConfig{
 			Enabled:      true,

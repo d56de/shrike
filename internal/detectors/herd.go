@@ -2,6 +2,7 @@ package detectors
 
 import (
 	"fmt"
+	"slices"
 	"sort"
 
 	"github.com/d56de/shrike/internal/core"
@@ -30,6 +31,7 @@ func (Herd) Detect(procs []core.ProcessInfo, cfg core.DetectorConfig) []core.Fin
 	if cpuThresh == 0 {
 		cpuThresh = 30.0
 	}
+	ignore, _ := cfg["ignore"].([]string)
 
 	groups := map[string][]core.ProcessInfo{}
 	for _, p := range procs {
@@ -38,6 +40,9 @@ func (Herd) Detect(procs []core.ProcessInfo, cfg core.DetectorConfig) []core.Fin
 			key = p.Command
 		}
 		if key == "" {
+			continue
+		}
+		if slices.Contains(ignore, p.Command) {
 			continue
 		}
 		groups[key] = append(groups[key], p)

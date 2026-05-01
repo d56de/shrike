@@ -2,6 +2,7 @@ package detectors
 
 import (
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/d56de/shrike/internal/core"
@@ -26,6 +27,7 @@ func (Zombie) Detect(procs []core.ProcessInfo, cfg core.DetectorConfig) []core.F
 	if minAge == 0 {
 		minAge = 5 * time.Minute
 	}
+	ignore, _ := cfg["ignore"].([]string)
 
 	var out []core.Finding
 	for _, p := range procs {
@@ -33,6 +35,13 @@ func (Zombie) Detect(procs []core.ProcessInfo, cfg core.DetectorConfig) []core.F
 			continue
 		}
 		if p.ElapsedTime < minAge {
+			continue
+		}
+		// Skip processes whose Command is on the ignore list — typically
+		// long-lived helpers spawned by GUI apps where parent-kill would
+		// terminate the user's running session (e.g. Autodesk's
+		// AdpSDKUtil → Fusion).
+		if slices.Contains(ignore, p.Command) {
 			continue
 		}
 

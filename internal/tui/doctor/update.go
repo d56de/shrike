@@ -46,7 +46,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.Width, m.Height = msg.Width, msg.Height
-		return m, nil
+		return m.adjustOffset(), nil
 	case tea.KeyMsg:
 		return m.handleKey(msg)
 	case ActionMsg:
@@ -79,8 +79,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.Cursor >= len(m.Findings) {
 				m.Cursor = 0
 			}
+			m.Offset = 0
 		}
-		return m, nil
+		return m.adjustOffset(), nil
 	case spinTickMsg:
 		if m.Rescanning || m.Sampling || m.ActionRunning {
 			m.SpinnerFrame++
@@ -132,6 +133,34 @@ func (m Model) handleListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if m.Cursor < len(m.Findings)-1 {
 			m.Cursor++
 		}
+	case "pgup":
+		page := m.visibleCount()
+		if page < 1 {
+			page = 1
+		}
+		m.Cursor -= page
+		if m.Cursor < 0 {
+			m.Cursor = 0
+		}
+	case "pgdown":
+		page := m.visibleCount()
+		if page < 1 {
+			page = 1
+		}
+		m.Cursor += page
+		if last := len(m.Findings) - 1; m.Cursor > last {
+			m.Cursor = last
+		}
+		if m.Cursor < 0 {
+			m.Cursor = 0
+		}
+	case "home":
+		m.Cursor = 0
+	case "end":
+		m.Cursor = len(m.Findings) - 1
+		if m.Cursor < 0 {
+			m.Cursor = 0
+		}
 	case " ":
 		if m.Selected[m.Cursor] {
 			delete(m.Selected, m.Cursor)
@@ -179,7 +208,7 @@ func (m Model) handleListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			}
 		}
 	}
-	return m, nil
+	return m.adjustOffset(), nil
 }
 
 func (m Model) handleConfirmKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {

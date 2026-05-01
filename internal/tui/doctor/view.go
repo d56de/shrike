@@ -165,11 +165,30 @@ func renderListBody(t style.Theme, m Model, innerWidth int) string {
 	}
 
 	if len(m.Findings) == 0 {
-		b.WriteString(pad(t.Subtle.Render("No suspicious processes — your Mac looks great 🎉")) + "\n")
+		b.WriteString(pad(t.CheckboxOn.Render("✓")+" "+t.Subtle.Render("No suspicious processes — your Mac looks great")) + "\n")
 		b.WriteString(pad(t.Subtle.Render("(Lower the thresholds in config.toml to make shrike more picky.)")) + "\n")
 	}
 
-	for i, f := range m.Findings {
+	// Window the list so it fits in the terminal — see Model.visibleCount /
+	// Model.adjustOffset. When everything fits, start=0 / end=len: identical
+	// to pre-scroll behaviour.
+	visible := m.visibleCount()
+	start := m.Offset
+	if start < 0 {
+		start = 0
+	}
+	end := start + visible
+	if end > len(m.Findings) {
+		end = len(m.Findings)
+	}
+
+	if start > 0 {
+		b.WriteString(pad(t.Subtle.Render(fmt.Sprintf("↑ %d more above", start))) + "\n")
+		b.WriteString(pad(t.Gutter.Render("│")) + "\n")
+	}
+
+	for i := start; i < end; i++ {
+		f := m.Findings[i]
 		active := m.Cursor == i
 
 		// Cursor glyph replaces the tree-gutter at the entry row.
@@ -249,10 +268,15 @@ func renderListBody(t style.Theme, m Model, innerWidth int) string {
 			}
 		}
 
-		// Connector between entries (except after the last).
-		if i < len(m.Findings)-1 {
+		// Connector between entries (except after the last visible entry).
+		if i < end-1 {
 			b.WriteString(pad(t.Gutter.Render("│")) + "\n")
 		}
+	}
+
+	if end < len(m.Findings) {
+		b.WriteString(pad(t.Gutter.Render("│")) + "\n")
+		b.WriteString(pad(t.Subtle.Render(fmt.Sprintf("↓ %d more below", len(m.Findings)-end))) + "\n")
 	}
 
 	b.WriteString(pad("") + "\n")
@@ -267,13 +291,57 @@ func renderListBody(t style.Theme, m Model, innerWidth int) string {
 			break
 		}
 	}
-	footer := "[↑/↓] navigate · [space] select"
-	if hasHerd {
-		footer += " · [→] expand"
+	for _, line := range wrapKeyhint(keyhintSegments(hasHerd), innerWidth) {
+		b.WriteString(pad(t.KeyHint.Render(line)) + "\n")
 	}
-	footer += " · [i]nfo · [s]ample · [k]ill · [r]enice · [R] rescan · [?] help · [q]uit"
-	b.WriteString(pad(t.KeyHint.Render(footer)) + "\n")
 	return b.String()
+}
+
+// keyhintSegments returns the discrete keyhint segments shown in the footer.
+// Building them as a slice lets wrapKeyhint flow them across multiple lines
+// when the terminal is too narrow for a single-line footer.
+func keyhintSegments(hasHerd bool) []string {
+	segs := []string{"[↑/↓] navigate", "[PgUp/PgDn] page", "[space] select"}
+	if hasHerd {
+		segs = append(segs, "[→] expand")
+	}
+	return append(segs,
+		"[i]nfo", "[s]ample", "[k]ill", "[r]enice",
+		"[R] rescan", "[?] help", "[q]uit")
+}
+
+// wrapKeyhint flows segments into lines, joined by " · ", so each line fits
+// within width visual columns. Segments are never split — a segment longer
+// than width sits alone on its own line (and overflows).
+func wrapKeyhint(segments []string, width int) []string {
+	if width < 1 {
+		width = 1
+	}
+	const sep = " · "
+	sepW := lipgloss.Width(sep)
+	var lines []string
+	cur := ""
+	curW := 0
+	for _, s := range segments {
+		sw := lipgloss.Width(s)
+		if cur == "" {
+			cur = s
+			curW = sw
+			continue
+		}
+		if curW+sepW+sw <= width {
+			cur += sep + s
+			curW += sepW + sw
+			continue
+		}
+		lines = append(lines, cur)
+		cur = s
+		curW = sw
+	}
+	if cur != "" {
+		lines = append(lines, cur)
+	}
+	return lines
 }
 
 // pad returns the line with a 2-space left padding matching the frame's inner edge.
@@ -372,19 +440,35 @@ func renderConfirmBody(t style.Theme, m Model, innerWidth int) string {
 
 	// One row per target, styled like a main-list entry, with a gutter
 	// connector line between rows so it visually reads as a small tree.
+	// Zombie redirects are rendered un-truncated so the user always sees
+	// that the action will hit a different PID than the one they selected.
 	targets := m.selectedTargets()
+	hasZombieRedirect := false
 	for i, p := range targets {
-		sevName := severityForPID(m.Findings, p.PID)
 		cursor := t.Cursor.Render("◆")
-		bar := renderCPUBarColored(t, p.CPUPercent, 6, sevName)
-		line := fmt.Sprintf("%s  %-30s  PID %-6d %s %.1f%% CPU",
-			cursor, truncate(p.Command, 30), p.PID, bar, p.CPUPercent)
-		b.WriteString(pad(line) + "\n")
+		if strings.HasPrefix(p.Command, "reap ") {
+			hasZombieRedirect = true
+			warn := t.Severity["high"].Render("⚠")
+			b.WriteString(pad(fmt.Sprintf("%s  %s %s", cursor, warn, p.Command)) + "\n")
+		} else {
+			sevName := severityForPID(m.Findings, p.PID)
+			bar := renderCPUBarColored(t, p.CPUPercent, 6, sevName)
+			line := fmt.Sprintf("%s  %-30s  PID %-6d %s %.1f%% CPU",
+				cursor, truncate(p.Command, 30), p.PID, bar, p.CPUPercent)
+			b.WriteString(pad(line) + "\n")
+		}
 		if i < len(targets)-1 {
 			b.WriteString(pad(t.Gutter.Render("│")) + "\n")
 		}
 	}
 	b.WriteString(pad(t.Gutter.Render("│")) + "\n")
+
+	if hasZombieRedirect {
+		b.WriteString(pad(t.Severity["high"].Render(
+			"⚠ Parent process will be signalled — may terminate a running GUI app.")) + "\n")
+		b.WriteString(pad(t.Subtle.Render(
+			"  Zombies themselves consume nothing; safe to leave alone.")) + "\n")
+	}
 
 	b.WriteString(pad("") + "\n")
 	b.WriteString(footerDivider(t, innerWidth))
@@ -555,6 +639,8 @@ func renderSampleBody(t style.Theme, m Model, innerWidth int) string {
 func renderHelpBody(t style.Theme, innerWidth int) string {
 	items := [][2]string{
 		{"↑/↓", "navigate"},
+		{"PgUp/PgDn", "page up/down"},
+		{"Home/End", "first / last finding"},
 		{"Space", "select / deselect"},
 		{"→/←", "expand/collapse herd"},
 		{"i", "info modal"},

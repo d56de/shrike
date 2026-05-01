@@ -36,6 +36,7 @@ type RunawayConfig struct {
 // ZombieConfig configures the zombie detector.
 type ZombieConfig struct {
 	MinAge Duration `toml:"min_age"`
+	Ignore []string `toml:"ignore"`
 }
 
 // HerdConfig configures the herd detector.
@@ -43,6 +44,7 @@ type HerdConfig struct {
 	MinSize           int      `toml:"min_size"`
 	TotalCPUThreshold float64  `toml:"total_cpu_threshold"`
 	KnownBadActors    []string `toml:"known_bad_actors"`
+	Ignore            []string `toml:"ignore"`
 }
 
 // HistoryConfig controls the history JSONL behaviour.

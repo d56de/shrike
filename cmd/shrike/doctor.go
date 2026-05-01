@@ -20,8 +20,9 @@ import (
 )
 
 var (
-	doctorJSON bool
-	doctorOnly []string
+	doctorJSON      bool
+	doctorOnly      []string
+	doctorThreshold float64
 )
 
 var doctorCmd = &cobra.Command{
@@ -31,6 +32,15 @@ var doctorCmd = &cobra.Command{
 		c, err := cfg.Load()
 		if err != nil {
 			return fmt.Errorf("load config: %w", err)
+		}
+
+		// CLI override: --threshold lowers (or raises) the runaway CPU
+		// threshold for this run only — config file is untouched.
+		if cmd.Flags().Changed("threshold") {
+			if doctorThreshold < 0 {
+				return fmt.Errorf("--threshold must be ≥ 0, got %.1f", doctorThreshold)
+			}
+			c.Runaway.CPUThreshold = doctorThreshold
 		}
 
 		engine := buildEngine(c, doctorOnly)
@@ -155,10 +165,12 @@ func buildEngine(c cfg.Config, only []string) *core.Engine {
 		},
 		"zombie": {
 			"min_age": time.Duration(c.Zombie.MinAge),
+			"ignore":  c.Zombie.Ignore,
 		},
 		"herd": {
 			"min_size":            c.Herd.MinSize,
 			"total_cpu_threshold": c.Herd.TotalCPUThreshold,
+			"ignore":              c.Herd.Ignore,
 		},
 	}
 
@@ -203,4 +215,6 @@ func spinScanning(done <-chan struct{}) {
 func init() {
 	doctorCmd.Flags().BoolVar(&doctorJSON, "json", false, "emit JSON findings to stdout, no TUI")
 	doctorCmd.Flags().StringSliceVar(&doctorOnly, "only", nil, "comma-separated detector names to run (default: all)")
+	doctorCmd.Flags().Float64Var(&doctorThreshold, "threshold", 0,
+		"override runaway CPU threshold in percent (e.g. --threshold 20 catches 20%+ CPU; default: from config)")
 }
