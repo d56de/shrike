@@ -52,7 +52,7 @@ func TestVisibleCountShrinksAsFooterWraps(t *testing.T) {
 }
 
 func TestWrapKeyhintBreaksOnNarrowWidth(t *testing.T) {
-	segs := keyhintSegments(true)
+	segs := keyhintSegments(true, true)
 	wide := wrapKeyhint(segs, 200)
 	if len(wide) != 1 {
 		t.Errorf("width=200 should fit on 1 line, got %d", len(wide))

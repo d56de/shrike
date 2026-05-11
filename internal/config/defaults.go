@@ -36,6 +36,9 @@ func DefaultConfig() Config {
 			SeverityHighColor:   "#ff5555",
 			SeverityMediumColor: "#ffa500",
 			SeverityLowColor:    "#ffd700",
+			// 0 = auto-refresh off by default. User opts in via config or
+			// the [a] hotkey in the TUI.
+			AutoRefreshInterval: 0,
 		},
 	}
 }

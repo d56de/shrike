@@ -6,6 +6,7 @@ package sysinfo
 import (
 	"context"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"time"
@@ -71,11 +72,18 @@ func convert(ctx context.Context, p *process.Process) (core.ProcessInfo, error) 
 	if v, err := p.CmdlineSliceWithContext(ctx); err == nil {
 		pi.Args = v
 	}
-	if v, err := p.CPUPercentWithContext(ctx); err == nil {
+	// gopsutil returns NaN for processes too young to have a CPU-delta yet
+	// (created between two samples), and occasionally for zombies/transient
+	// procs. Clamp NaN/Inf to 0 at ingest so downstream renderers, JSON
+	// output, history writes, and scoring never see them.
+	if v, err := p.CPUPercentWithContext(ctx); err == nil && !math.IsNaN(v) && !math.IsInf(v, 0) {
 		pi.CPUPercent = v
 	}
 	if v, err := p.MemoryPercentWithContext(ctx); err == nil {
-		pi.MemPercent = float64(v)
+		f := float64(v)
+		if !math.IsNaN(f) && !math.IsInf(f, 0) {
+			pi.MemPercent = f
+		}
 	}
 	if mi, err := p.MemoryInfoWithContext(ctx); err == nil && mi != nil {
 		pi.RSS = mi.RSS

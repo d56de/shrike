@@ -3,8 +3,10 @@ package doctor
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/d56de/shrike/internal/actions"
 	"github.com/d56de/shrike/internal/core"
 	"github.com/d56de/shrike/internal/tui/style"
 )
@@ -144,7 +146,15 @@ func renderListBody(t style.Theme, m Model, innerWidth int) string {
 	if m.RunDuration > 0 {
 		durLabel = fmt.Sprintf("%.2fs", m.RunDuration.Seconds())
 	}
-	statusTail := t.Subtle.Render("(" + durLabel + ")")
+	statusTailInner := durLabel
+	if m.AutoRefreshInterval > 0 {
+		if m.AutoRefreshOn {
+			statusTailInner += " · auto: " + shortDuration(m.AutoRefreshInterval)
+		} else {
+			statusTailInner += " · auto: off"
+		}
+	}
+	statusTail := t.Subtle.Render("(" + statusTailInner + ")")
 	if m.Rescanning {
 		frames := []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
 		spin := t.Frame.Render(frames[m.SpinnerFrame%len(frames)])
@@ -190,20 +200,26 @@ func renderListBody(t style.Theme, m Model, innerWidth int) string {
 	for i := start; i < end; i++ {
 		f := m.Findings[i]
 		active := m.Cursor == i
+		killed := isFindingKilled(f, m.KilledPIDs)
 
 		// Cursor glyph replaces the tree-gutter at the entry row.
 		var cursor string
-		if active {
+		switch {
+		case active:
 			cursor = t.Cursor.Render("◆")
-		} else {
+		default:
 			cursor = t.CursorInactive.Render("◇")
 		}
 
-		// Checkbox: always ✓; green when selected, grey when not.
+		// Checkbox: ✓ for selected, ✕ when killed (overrides selection),
+		// faded ✓ otherwise.
 		var box string
-		if m.Selected[i] {
+		switch {
+		case killed:
+			box = t.Killed.Render("✕")
+		case m.Selected[i]:
 			box = t.CheckboxOn.Render("✓")
-		} else {
+		default:
 			box = t.CheckboxOff.Render("✓")
 		}
 
@@ -229,12 +245,17 @@ func renderListBody(t style.Theme, m Model, innerWidth int) string {
 		bar := renderCPUBarColored(t, cpu, 6, sevName)
 		rssLabel := fmt.Sprintf("%d MB", rss/1024/1024)
 
-		// Row: "◆  ✓ Command            PID ###  ███░░░  49.0% CPU · 154 MB · 7d 1h  High"
-		//      (Σ replaces the leading space when the CPU is an aggregate.)
-		row := fmt.Sprintf("%s  %s %-30s  PID %-6d %s %s%.1f%% CPU · %-7s · %-7s %s",
-			cursor, box, cmdLabel,
-			f.Process.PID, bar, cpuPrefix, cpu, rssLabel,
+		// Killed entries: strike through the data half (cmd/PID/CPU/RSS/age)
+		// so the row stays in place after a kill — the user can still see
+		// what was acted on. Leave cursor + checkbox glyph un-restyled so
+		// they remain readable; the ✕ in the box already carries the state.
+		data := fmt.Sprintf("%-30s  PID %-6d %s %s%.1f%% CPU · %-7s · %-7s %s",
+			cmdLabel, f.Process.PID, bar, cpuPrefix, cpu, rssLabel,
 			formatElapsedShort(int64(f.Process.ElapsedTime.Seconds())), sev)
+		if killed {
+			data = t.Killed.Render(data)
+		}
+		row := fmt.Sprintf("%s  %s %s", cursor, box, data)
 		b.WriteString(pad(row) + "\n")
 
 		// Path line always shown (truncated for long paths).
@@ -291,7 +312,7 @@ func renderListBody(t style.Theme, m Model, innerWidth int) string {
 			break
 		}
 	}
-	for _, line := range wrapKeyhint(keyhintSegments(hasHerd), innerWidth) {
+	for _, line := range wrapKeyhint(keyhintSegments(hasHerd, m.AutoRefreshInterval > 0), innerWidth) {
 		b.WriteString(pad(t.KeyHint.Render(line)) + "\n")
 	}
 	return b.String()
@@ -300,14 +321,33 @@ func renderListBody(t style.Theme, m Model, innerWidth int) string {
 // keyhintSegments returns the discrete keyhint segments shown in the footer.
 // Building them as a slice lets wrapKeyhint flow them across multiple lines
 // when the terminal is too narrow for a single-line footer.
-func keyhintSegments(hasHerd bool) []string {
+func keyhintSegments(hasHerd, hasAutoRefresh bool) []string {
 	segs := []string{"[↑/↓] navigate", "[PgUp/PgDn] page", "[space] select"}
 	if hasHerd {
 		segs = append(segs, "[→] expand")
 	}
-	return append(segs,
+	segs = append(segs,
 		"[i]nfo", "[s]ample", "[k]ill", "[r]enice",
-		"[R] rescan", "[?] help", "[q]uit")
+		"[R] rescan")
+	if hasAutoRefresh {
+		segs = append(segs, "[a]uto-refresh")
+	}
+	return append(segs, "[?] help", "[q]uit")
+}
+
+// shortDuration formats a duration as the compact form used in the status
+// header: "5s", "30s", "2m", "1h". Sub-second durations fall back to "<1s".
+func shortDuration(d time.Duration) string {
+	switch {
+	case d < time.Second:
+		return "<1s"
+	case d < time.Minute:
+		return fmt.Sprintf("%ds", int(d.Seconds()))
+	case d < time.Hour:
+		return fmt.Sprintf("%dm", int(d.Minutes()))
+	default:
+		return fmt.Sprintf("%dh", int(d.Hours()))
+	}
 }
 
 // wrapKeyhint flows segments into lines, joined by " · ", so each line fits
@@ -364,6 +404,18 @@ var partialBlocks = []string{" ", "▏", "▎", "▍", "▌", "▋", "▊", "▉
 // renderCPUBarColored draws a width-char bar tinted with the severity colour.
 // Uses Unicode partial blocks for sub-cell accuracy so that e.g. 48.8% of a
 // 6-cell bar reads as "██▉░░░" (≈48%) instead of "██░░░░" (≈33%).
+//
+// Every cell is a "█" so adjacent cells join seamlessly regardless of font:
+//   - filled cells use the severity foreground colour
+//   - the boundary cell uses a partial-block glyph with severity foreground
+//     and the empty colour as background, so its right portion blends into
+//     the empty cells next to it
+//   - empty cells use a "█" in the empty colour
+//
+// This eliminates the visual gap that appeared at low percentages when the
+// empty portion was rendered with "░" (LIGHT SHADE) — that glyph's dotted
+// fill doesn't reach the cell edges in most monospace fonts, so the
+// transition `█░` showed a vertical seam.
 func renderCPUBarColored(t style.Theme, pct float64, width int, severity string) string {
 	if pct < 0 {
 		pct = 0
@@ -386,16 +438,17 @@ func renderCPUBarColored(t style.Theme, pct float64, width int, severity string)
 	}
 	// Drop bold so the bar reads evenly even for "critical".
 	sevStyle = sevStyle.Bold(false)
-	faint := sevStyle.Faint(true)
+	emptyColor := lipgloss.Color("237")
+	emptyStyle := lipgloss.NewStyle().Foreground(emptyColor)
 
 	var s strings.Builder
 	s.WriteString(sevStyle.Render(strings.Repeat("█", fullBlocks)))
 	remaining := width - fullBlocks
 	if remainder > 0 && remaining > 0 {
-		s.WriteString(sevStyle.Render(partialBlocks[remainder]))
+		s.WriteString(sevStyle.Background(emptyColor).Render(partialBlocks[remainder]))
 		remaining--
 	}
-	s.WriteString(faint.Render(strings.Repeat("░", remaining)))
+	s.WriteString(emptyStyle.Render(strings.Repeat("█", remaining)))
 	return s.String()
 }
 
@@ -438,16 +491,51 @@ func renderConfirmBody(t style.Theme, m Model, innerWidth int) string {
 	b.WriteString(pad(t.Accent.Render("⏺")+"  "+a.Confirm()) + "\n")
 	b.WriteString(pad(t.Gutter.Render("│")) + "\n")
 
-	// One row per target, styled like a main-list entry, with a gutter
-	// connector line between rows so it visually reads as a small tree.
-	// Zombie redirects are rendered un-truncated so the user always sees
-	// that the action will hit a different PID than the one they selected.
 	targets := m.selectedTargets()
+
+	// Pre-pass: detect zombie redirects so chrome budget for the viewport is
+	// computed correctly (zombie warning adds two lines below the list).
 	hasZombieRedirect := false
-	for i, p := range targets {
-		cursor := t.Cursor.Render("◆")
+	for _, p := range targets {
 		if strings.HasPrefix(p.Command, "reap ") {
 			hasZombieRedirect = true
+			break
+		}
+	}
+
+	// Window the targets list so a herd-kill of N processes doesn't overflow
+	// the terminal. Scroll keys (↑/↓/PgUp/PgDn/Home/End) adjust m.ConfirmOffset.
+	visible := m.confirmVisibleCount(len(targets), hasZombieRedirect)
+	offset := m.ConfirmOffset
+	if visible >= len(targets) {
+		offset = 0
+	} else if max := len(targets) - visible; offset > max {
+		offset = max
+	}
+	if offset < 0 {
+		offset = 0
+	}
+	end := offset + visible
+	if end > len(targets) {
+		end = len(targets)
+	}
+	hiddenAbove := offset
+	hiddenBelow := len(targets) - end
+	scrollable := hiddenAbove > 0 || hiddenBelow > 0
+
+	// "↑ N more" indicator when scrolled.
+	if hiddenAbove > 0 {
+		b.WriteString(pad(t.Subtle.Render(fmt.Sprintf("  ↑ %d more above", hiddenAbove))) + "\n")
+	}
+
+	// One row per visible target, styled like a main-list entry, with a
+	// gutter connector line between rows so it visually reads as a small
+	// tree. Zombie redirects are rendered un-truncated so the user always
+	// sees that the action will hit a different PID than the one selected.
+	for i := offset; i < end; i++ {
+		p := targets[i]
+		cursor := t.Cursor.Render("◆")
+		if strings.HasPrefix(p.Command, "reap ") {
 			warn := t.Severity["high"].Render("⚠")
 			b.WriteString(pad(fmt.Sprintf("%s  %s %s", cursor, warn, p.Command)) + "\n")
 		} else {
@@ -457,10 +545,16 @@ func renderConfirmBody(t style.Theme, m Model, innerWidth int) string {
 				cursor, truncate(p.Command, 30), p.PID, bar, p.CPUPercent)
 			b.WriteString(pad(line) + "\n")
 		}
-		if i < len(targets)-1 {
+		if i < end-1 {
 			b.WriteString(pad(t.Gutter.Render("│")) + "\n")
 		}
 	}
+
+	// "↓ N more" indicator when more targets remain below the viewport.
+	if hiddenBelow > 0 {
+		b.WriteString(pad(t.Subtle.Render(fmt.Sprintf("  ↓ %d more below", hiddenBelow))) + "\n")
+	}
+
 	b.WriteString(pad(t.Gutter.Render("│")) + "\n")
 
 	if hasZombieRedirect {
@@ -473,8 +567,39 @@ func renderConfirmBody(t style.Theme, m Model, innerWidth int) string {
 	b.WriteString(pad("") + "\n")
 	b.WriteString(footerDivider(t, innerWidth))
 	b.WriteString(pad("") + "\n")
-	b.WriteString(pad(t.KeyHint.Render("[y] confirm · [n] cancel")) + "\n")
+	hint := "[y] confirm · [n] cancel"
+	if scrollable {
+		hint = "[↑/↓] scroll · " + hint
+	}
+	b.WriteString(pad(t.KeyHint.Render(hint)) + "\n")
 	return b.String()
+}
+
+// isFindingKilled reports whether the user already signalled the process
+// represented by this finding in the current session. For herds, any group
+// member match counts (bulk-kill signals every PID). For zombies, the kill
+// targets the PPID, so the parent PID is what lands in `killed`.
+func isFindingKilled(f core.Finding, killed map[int]bool) bool {
+	if len(killed) == 0 {
+		return false
+	}
+	if killed[f.Process.PID] {
+		return true
+	}
+	if f.Detector == "zombie" && killed[f.Process.PPID] {
+		return true
+	}
+	if f.Group != nil {
+		if killed[f.Group.Parent.PID] {
+			return true
+		}
+		for _, c := range f.Group.Children {
+			if killed[c.PID] {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // severityForPID looks up the severity label associated with a PID across the
@@ -587,6 +712,39 @@ func renderInfoBody(t style.Theme, m Model, innerWidth int) string {
 	for _, r := range rows {
 		b.WriteString(pad(formatKV(t, r[0], r[1], 12)) + "\n")
 	}
+
+	// Detail section: extra fields loaded lazily on modal open. The static
+	// rows above stay visible during the fetch so the panel never blanks.
+	b.WriteString(pad("") + "\n")
+	b.WriteString(pad(t.Subtle.Render("─ details ──────────────────────────")) + "\n")
+
+	if m.InfoLoading {
+		frames := []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
+		spin := t.Frame.Render(frames[m.SpinnerFrame%len(frames)])
+		b.WriteString(pad(spin+" "+t.Subtle.Render("loading process details…")) + "\n")
+	} else {
+		d := m.InfoDetails
+		detailRows := [][2]string{
+			{"Cwd:", nonEmpty(d.Cwd, "—")},
+			{"Threads:", fmt.Sprintf("%d", d.Threads)},
+			{"I/O read:", actions.FormatBytes(d.IOReads)},
+			{"I/O write:", actions.FormatBytes(d.IOWrites)},
+			{"Ancestry:", actions.FormatAncestors(d.Ancestors)},
+		}
+		// When the parent finding is a herd, list the helper children so the
+		// inspector reads as a tree-summary, not just the single representative.
+		if f.Group != nil && len(f.Group.Children) > 0 {
+			detailRows = append(detailRows,
+				[2]string{"Herd kids:", fmt.Sprintf("%d helpers", len(f.Group.Children))})
+		}
+		for _, r := range detailRows {
+			b.WriteString(pad(formatKV(t, r[0], r[1], 12)) + "\n")
+		}
+		for _, note := range d.Notes {
+			b.WriteString(pad(t.Subtle.Render("note: "+note)) + "\n")
+		}
+	}
+
 	b.WriteString(pad("") + "\n")
 	b.WriteString(footerDivider(t, innerWidth))
 	b.WriteString(pad("") + "\n")
@@ -649,6 +807,7 @@ func renderHelpBody(t style.Theme, innerWidth int) string {
 		{"K", "kill immediately (SIGKILL)"},
 		{"r", "renice +10"},
 		{"R", "rescan (re-run detectors)"},
+		{"a", "toggle auto-refresh (configure interval in config.toml)"},
 		{"?", "this help"},
 		{"q / Esc", "quit / close modal"},
 	}

@@ -19,6 +19,7 @@ type Theme struct {
 	CPUBarFilled   lipgloss.Style
 	CPUBarEmpty    lipgloss.Style
 	Accent         lipgloss.Style // status dot, active highlights
+	Killed         lipgloss.Style // rows for PIDs already signalled in this session
 }
 
 // DefaultTheme returns the baseline Lipgloss theme.
@@ -38,6 +39,7 @@ func DefaultTheme() Theme {
 		CPUBarFilled:   lipgloss.NewStyle().Foreground(lipgloss.Color("#FD8282")),
 		CPUBarEmpty:    lipgloss.NewStyle().Foreground(lipgloss.Color("240")),
 		Accent:         lipgloss.NewStyle().Foreground(lipgloss.Color("#8A88C2")).Bold(true),
+		Killed:         lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Strikethrough(true),
 		Severity: map[string]lipgloss.Style{
 			"critical": lipgloss.NewStyle().Foreground(lipgloss.Color("#FD8282")).Bold(true),
 			"high":     lipgloss.NewStyle().Foreground(lipgloss.Color("#FD8282")),

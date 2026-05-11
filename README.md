@@ -6,7 +6,7 @@
 
 `shrike` is an opinionated macOS TUI that surfaces **suspicious processes** — runaway CPU hogs, zombies, and helper-process herds (think 11 Chrome renderers or 5 Claude sessions) — and lets you act on them with single keystrokes.
 
-Status: pre-alpha — current release **v0.2.0**. Interfaces may still shift before v1.0.
+Status: pre-alpha — current release **v0.3.0**. Interfaces may still shift before v1.0.
 
 ## Install
 
@@ -28,6 +28,8 @@ shrike doctor --threshold 20   # lower the runaway CPU threshold to 20%
 shrike doctor --json           # headless JSON findings for scripting
 shrike doctor --only runaway   # run a specific detector (runaway | zombie | herd)
 shrike log --since 24h         # history of previous runs
+shrike stats                   # GitHub-style activity heatmap (last 13 weeks)
+shrike stats --weeks 26        # half-year view
 shrike config                  # print effective config + path
 shrike config edit             # open config.toml in $EDITOR
 ```
@@ -48,6 +50,7 @@ Exit code of `shrike doctor --json`: `0` no findings, `1` findings present, `2` 
 - `Space` — select / deselect.
 - `?` — keyboard help.
 - `R` — rescan.
+- `a` — toggle auto-refresh (only active when `[ui] auto_refresh_interval` is set in `config.toml`, e.g. `"5s"`).
 - `q` / `Esc` — quit / close modal.
 
 The footer keyhints wrap to multiple lines on narrow terminals so the frame never overflows.
@@ -78,6 +81,10 @@ To regenerate `docs/demo.gif`:
 brew install vhs
 vhs docs/demo.tape
 ```
+
+## Roadmap
+
+(No planned items pending — the v0.3 wishlist has shipped. New ideas welcome via GitHub issues.)
 
 ## License
 

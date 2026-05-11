@@ -44,6 +44,34 @@ type Model struct {
 	// viewport derived from Height. Zero on initial render.
 	Offset int
 
+	// ConfirmOffset is the index of the first visible target inside the
+	// kill-confirm modal. Bulk-killing a herd can produce more targets than
+	// fit on screen; ↑/↓ in ModeConfirm scrolls the list. Reset to 0 each
+	// time ModeConfirm is entered.
+	ConfirmOffset int
+
+	// KilledPIDs records PIDs the user has successfully signalled in this
+	// session. The list view renders them as crossed-out without removing
+	// the row so the layout stays stable until the user requests a rescan.
+	// Cleared on rescan.
+	KilledPIDs map[int]bool
+
+	// AutoRefreshInterval is the cadence at which the doctor silently
+	// re-runs detectors when AutoRefreshOn is true. Zero disables.
+	AutoRefreshInterval time.Duration
+
+	// AutoRefreshOn is the runtime toggle for auto-refresh. Starts true if
+	// the config provides a non-zero interval, then flips with [a].
+	AutoRefreshOn bool
+
+	// Info-modal lazy state. InfoLoading is true while FetchInfo is in flight,
+	// InfoDetails carries the result, and InfoTargetPID guards against a
+	// stale message overwriting fresh data when the user re-opens the modal
+	// on a different cursor before the previous fetch returned.
+	InfoLoading   bool
+	InfoDetails   actions.InfoDetails
+	InfoTargetPID int
+
 	// Status line context (set by the caller before launching the program).
 	Version      string
 	ProcsScanned int
@@ -167,7 +195,7 @@ func (m Model) visibleCount() int {
 	// The footer wraps to multiple lines on narrow terminals — each extra
 	// line steals from the entry budget. Use the long (hasHerd=true) form
 	// so the chrome estimate stays conservative.
-	if extra := len(wrapKeyhint(keyhintSegments(true), inner)) - 1; extra > 0 {
+	if extra := len(wrapKeyhint(keyhintSegments(true, true), inner)) - 1; extra > 0 {
 		chrome += extra
 	}
 	avail := m.Height - chrome
@@ -175,6 +203,60 @@ func (m Model) visibleCount() int {
 		return 1
 	}
 	return avail / 3
+}
+
+// confirmVisibleCount returns how many target rows fit inside the confirm
+// modal given the current terminal height. Each target renders as two lines
+// (the row + a gutter connector), except the last which is just the row.
+// Chrome (header, divider, footer, frame, optional zombie warning, scroll
+// indicators) is subtracted before dividing. Returns at least 1 so the
+// modal always shows the cursor target on degenerate terminals.
+func (m Model) confirmVisibleCount(totalTargets int, hasZombieWarning bool) int {
+	if totalTargets <= 1 {
+		return totalTargets
+	}
+	if m.Height <= 0 {
+		return totalTargets
+	}
+	chrome := 11 // top border + leading blank + header + gutter + closing gutter + blank + divider + blank + footer + bottom border + safety
+	if hasZombieWarning {
+		chrome += 2
+	}
+	// Reserve 2 rows so we always have space for both scroll indicators
+	// (otherwise toggling between scrolled / unscrolled re-flows the modal).
+	chrome += 2
+	avail := m.Height - chrome
+	if avail < 1 {
+		return 1
+	}
+	// Each target row = 2 visual lines (target + gutter), except the last
+	// target which skips its trailing gutter. So N targets = 2N - 1 lines,
+	// hence N_max = (lines + 1) / 2.
+	n := (avail + 1) / 2
+	if n < 1 {
+		n = 1
+	}
+	if n > totalTargets {
+		n = totalTargets
+	}
+	return n
+}
+
+// adjustConfirmOffset clamps ConfirmOffset so the visible window stays within
+// the bounds of the targets list. Call when entering ModeConfirm or after
+// any scroll key.
+func (m Model) adjustConfirmOffset(totalTargets, visible int) Model {
+	if visible >= totalTargets {
+		m.ConfirmOffset = 0
+		return m
+	}
+	if max := totalTargets - visible; m.ConfirmOffset > max {
+		m.ConfirmOffset = max
+	}
+	if m.ConfirmOffset < 0 {
+		m.ConfirmOffset = 0
+	}
+	return m
 }
 
 // adjustOffset clamps Offset so the Cursor finding remains inside the visible

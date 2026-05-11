@@ -54,11 +54,16 @@ type HistoryConfig struct {
 	MaxRotations int  `toml:"max_rotations"`
 }
 
-// UIConfig holds colours for the TUI.
+// UIConfig holds colours and other TUI-level preferences.
 type UIConfig struct {
 	SeverityHighColor   string `toml:"severity_high_color"`
 	SeverityMediumColor string `toml:"severity_medium_color"`
 	SeverityLowColor    string `toml:"severity_low_color"`
+
+	// AutoRefreshInterval is how often the doctor TUI silently re-runs all
+	// detectors. Zero (default) disables auto-refresh; press [a] in the TUI
+	// to toggle at runtime. Typical useful values: "5s", "10s", "30s".
+	AutoRefreshInterval Duration `toml:"auto_refresh_interval"`
 }
 
 // Duration wraps time.Duration so TOML can unmarshal human-readable strings

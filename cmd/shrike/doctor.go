@@ -108,6 +108,10 @@ var doctorCmd = &cobra.Command{
 			MaxSizeMB:    c.History.MaxSizeMB,
 			MaxRotations: c.History.MaxRotations,
 		}
+		// Auto-refresh starts enabled iff the user configured a non-zero
+		// interval. Runtime toggle is the [a] hotkey.
+		model.AutoRefreshInterval = time.Duration(c.UI.AutoRefreshInterval)
+		model.AutoRefreshOn = model.AutoRefreshInterval > 0
 		prog := tea.NewProgram(model, tea.WithAltScreen())
 		if _, err := prog.Run(); err != nil {
 			return fmt.Errorf("tui: %w", err)
@@ -192,7 +196,10 @@ func spinScanning(done <-chan struct{}) {
 	}
 
 	frames := []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
-	spinStyle := style.DefaultTheme().Frame
+	theme := style.DefaultTheme()
+	spinStyle := theme.Frame
+	brandStyle := theme.Accent
+	brand := brandStyle.Render("Shrike")
 
 	tick := time.NewTicker(80 * time.Millisecond)
 	defer tick.Stop()
@@ -205,8 +212,8 @@ func spinScanning(done <-chan struct{}) {
 			_, _ = fmt.Fprint(os.Stderr, "\r\x1b[2K")
 			return
 		case <-tick.C:
-			_, _ = fmt.Fprintf(os.Stderr, "\r%s shrike: scanning processes…",
-				spinStyle.Render(frames[i%len(frames)]))
+			_, _ = fmt.Fprintf(os.Stderr, "\r%s %s — scanning processes…",
+				spinStyle.Render(frames[i%len(frames)]), brand)
 			i++
 		}
 	}

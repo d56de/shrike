@@ -55,12 +55,16 @@ func TestZombie_RespectsIgnoreList(t *testing.T) {
 	procs := []core.ProcessInfo{
 		// Long-lived helper of a GUI app that's expected to occasionally
 		// linger as a zombie — must not be flagged when ignored.
-		{PID: 100, Command: "AdpSDKUtil", State: core.StateZombie,
-			ElapsedTime: 2 * time.Hour, PPID: 99},
+		{
+			PID: 100, Command: "AdpSDKUtil", State: core.StateZombie,
+			ElapsedTime: 2 * time.Hour, PPID: 99,
+		},
 		// A regular zombie unrelated to the ignore list — must still be
 		// detected so we know the ignore filter isn't over-broad.
-		{PID: 200, Command: "rogue", State: core.StateZombie,
-			ElapsedTime: 2 * time.Hour, PPID: 199},
+		{
+			PID: 200, Command: "rogue", State: core.StateZombie,
+			ElapsedTime: 2 * time.Hour, PPID: 199,
+		},
 	}
 	cfg := core.DetectorConfig{
 		"min_age": 5 * time.Minute,

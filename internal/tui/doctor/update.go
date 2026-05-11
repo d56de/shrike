@@ -2,6 +2,7 @@ package doctor
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -21,6 +22,14 @@ type SampleDoneMsg struct {
 	Stacks []actions.Stack
 }
 
+// InfoDoneMsg carries the lazy-loaded extra fields shown in the info modal.
+// PID is echoed back so the Update handler can discard the message when the
+// user has since opened info on a different process.
+type InfoDoneMsg struct {
+	PID     int
+	Details actions.InfoDetails
+}
+
 // RescanDoneMsg carries the result of an in-TUI rescan.
 type RescanDoneMsg struct {
 	Findings []core.Finding
@@ -38,8 +47,27 @@ func spinTick() tea.Cmd {
 	})
 }
 
-// Init implements tea.Model.
-func (m Model) Init() tea.Cmd { return nil }
+// autoRefreshTickMsg fires every AutoRefreshInterval to drive silent rescans.
+type autoRefreshTickMsg struct{}
+
+// autoRefreshTick schedules the next auto-refresh tick. Returns nil if the
+// interval is non-positive — used as a no-op when auto-refresh is off.
+func autoRefreshTick(interval time.Duration) tea.Cmd {
+	if interval <= 0 {
+		return nil
+	}
+	return tea.Tick(interval, func(time.Time) tea.Msg {
+		return autoRefreshTickMsg{}
+	})
+}
+
+// Init implements tea.Model. Kicks off the auto-refresh ticker if enabled.
+func (m Model) Init() tea.Cmd {
+	if m.AutoRefreshOn && m.AutoRefreshInterval > 0 {
+		return autoRefreshTick(m.AutoRefreshInterval)
+	}
+	return nil
+}
 
 // Update implements tea.Model: dispatches based on mode.
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -53,12 +81,21 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.LastResults = msg.Results
 		m.Mode = ModeResults
 		m.ActionRunning = false
-		// Silently rescan so the list is up-to-date when the user dismisses
-		// the Results modal. Reuses the existing runRescan plumbing; the
-		// RescanDoneMsg handler updates Findings without changing Mode.
-		if m.Engine != nil {
-			return m, tea.Batch(runRescan(m.Engine, m.HistoryEnabled, m.HistoryConfig), spinTick())
+		// Successfully signalled PIDs are remembered so the list view can
+		// render them as crossed-out without removing them. The list layout
+		// stays stable — no automatic rescan, no cursor reset, no rows
+		// "rücken zusammen". The user presses [R] for fresh data.
+		if m.KilledPIDs == nil {
+			m.KilledPIDs = map[int]bool{}
 		}
+		for _, r := range msg.Results {
+			if r.Err == nil {
+				m.KilledPIDs[r.PID] = true
+			}
+		}
+		// Drop the bulk selection now that the action is done — leaving it
+		// checked on killed entries reads as "still to act on".
+		m.Selected = map[int]bool{}
 		return m, nil
 	case SampleDoneMsg:
 		m.Sampling = false
@@ -66,28 +103,68 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.SamplePID = msg.PID
 		m.SampleStacks = msg.Stacks
 		return m, nil
+	case InfoDoneMsg:
+		// Discard stale message: user navigated to a different cursor and
+		// re-opened info before this fetch returned. The fresh fetch is
+		// already in flight; nothing to do here.
+		if msg.PID != m.InfoTargetPID {
+			return m, nil
+		}
+		m.InfoLoading = false
+		m.InfoDetails = msg.Details
+		return m, nil
 	case RescanDoneMsg:
 		m.Rescanning = false
 		if m.Mode != ModeResults {
 			m.SpinnerFrame = 0
 		}
 		if msg.Err == nil {
+			// Preserve the cursor across rescans by PID so auto-refresh
+			// doesn't yank focus away from whatever the user was watching.
+			// Fallback: clamp the old index when the PID is gone.
+			var prevPID int
+			if m.Cursor >= 0 && m.Cursor < len(m.Findings) {
+				prevPID = m.Findings[m.Cursor].Process.PID
+			}
 			m.Findings = msg.Findings
 			m.RunDuration = msg.Duration
 			m.Selected = map[int]bool{}
 			m.Expanded = map[int]bool{}
-			if m.Cursor >= len(m.Findings) {
-				m.Cursor = 0
+			m.KilledPIDs = nil
+			m.Cursor = findPIDIndex(m.Findings, prevPID)
+			if m.Cursor < 0 {
+				if m.Cursor = len(m.Findings) - 1; m.Cursor < 0 {
+					m.Cursor = 0
+				}
 			}
-			m.Offset = 0
 		}
 		return m.adjustOffset(), nil
 	case spinTickMsg:
-		if m.Rescanning || m.Sampling || m.ActionRunning {
+		if m.Rescanning || m.Sampling || m.ActionRunning || m.InfoLoading {
 			m.SpinnerFrame++
 			return m, spinTick()
 		}
 		return m, nil
+	case autoRefreshTickMsg:
+		// Drop the tick chain entirely if auto-refresh was disabled while
+		// the tick was in flight. Re-enabling via [a] restarts the chain.
+		if !m.AutoRefreshOn || m.AutoRefreshInterval <= 0 {
+			return m, nil
+		}
+		// Skip the rescan when the UI is busy (modal open, action running,
+		// rescan already in flight) — but keep ticking so the chain doesn't
+		// die. Auto-refresh only fires from the calm idle-list state.
+		busy := m.Mode != ModeList || m.Rescanning || m.ActionRunning || m.Sampling
+		if busy || m.Engine == nil {
+			return m, autoRefreshTick(m.AutoRefreshInterval)
+		}
+		m.Rescanning = true
+		m.SpinnerFrame = 0
+		return m, tea.Batch(
+			runRescan(m.Engine, m.HistoryEnabled, m.HistoryConfig),
+			spinTick(),
+			autoRefreshTick(m.AutoRefreshInterval),
+		)
 	}
 	return m, nil
 }
@@ -179,8 +256,26 @@ func (m Model) handleListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.SpinnerFrame = 0
 			return m, tea.Batch(runRescan(m.Engine, m.HistoryEnabled, m.HistoryConfig), spinTick())
 		}
+	case "a":
+		// Toggle auto-refresh. If the interval is zero (never configured)
+		// the toggle is a no-op — the footer hint also hides in that case,
+		// so the keystroke just bounces off.
+		if m.AutoRefreshInterval > 0 {
+			m.AutoRefreshOn = !m.AutoRefreshOn
+			if m.AutoRefreshOn {
+				return m.adjustOffset(), autoRefreshTick(m.AutoRefreshInterval)
+			}
+		}
 	case "i":
 		m.Mode = ModeInfo
+		if m.Cursor >= 0 && m.Cursor < len(m.Findings) {
+			pid := m.Findings[m.Cursor].Process.PID
+			m.InfoTargetPID = pid
+			m.InfoDetails = actions.InfoDetails{}
+			m.InfoLoading = true
+			m.SpinnerFrame = 0
+			return m, tea.Batch(runFetchInfo(pid), spinTick())
+		}
 	case "s":
 		if m.Cursor >= 0 && m.Cursor < len(m.Findings) {
 			target := m.Findings[m.Cursor].Process
@@ -200,6 +295,7 @@ func (m Model) handleListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 					m.PendingAction = a
 					if a.Destructive() {
 						m.Mode = ModeConfirm
+						m.ConfirmOffset = 0
 					} else {
 						return m, runAction(a, m.selectedTargets())
 					}
@@ -223,8 +319,65 @@ func (m Model) handleConfirmKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "n":
 		m.Mode = ModeList
 		return m, nil
+	case "up":
+		if m.ConfirmOffset > 0 {
+			m.ConfirmOffset--
+		}
+		return m, nil
+	case "down":
+		m.ConfirmOffset++
+		return m.clampConfirmOffset(), nil
+	case "pgup":
+		page := confirmPageSize(m)
+		m.ConfirmOffset -= page
+		return m.clampConfirmOffset(), nil
+	case "pgdown":
+		page := confirmPageSize(m)
+		m.ConfirmOffset += page
+		return m.clampConfirmOffset(), nil
+	case "home":
+		m.ConfirmOffset = 0
+		return m, nil
+	case "end":
+		m.ConfirmOffset = 1 << 30 // clamp below
+		return m.clampConfirmOffset(), nil
 	}
 	return m, nil
+}
+
+// confirmPageSize returns the per-page step used by PgUp/PgDn inside the
+// confirm modal. Falls back to 1 on degenerate terminals.
+func confirmPageSize(m Model) int {
+	targets := m.selectedTargets()
+	n := len(targets)
+	hasZombie := false
+	for _, p := range targets {
+		if strings.HasPrefix(p.Command, "reap ") {
+			hasZombie = true
+			break
+		}
+	}
+	v := m.confirmVisibleCount(n, hasZombie)
+	if v < 1 {
+		return 1
+	}
+	return v
+}
+
+// clampConfirmOffset is a thin wrapper that recomputes the visible window
+// before clamping. Used by the scroll-key cases in handleConfirmKey.
+func (m Model) clampConfirmOffset() Model {
+	targets := m.selectedTargets()
+	n := len(targets)
+	hasZombie := false
+	for _, p := range targets {
+		if strings.HasPrefix(p.Command, "reap ") {
+			hasZombie = true
+			break
+		}
+	}
+	visible := m.confirmVisibleCount(n, hasZombie)
+	return m.adjustConfirmOffset(n, visible)
 }
 
 func runAction(a core.Action, targets []core.ProcessInfo) tea.Cmd {
@@ -242,6 +395,34 @@ func runSample(target core.ProcessInfo) tea.Cmd {
 		_ = s.Execute(context.Background(), []core.ProcessInfo{target})
 		return SampleDoneMsg{PID: target.PID, Stacks: s.Stacks[target.PID]}
 	}
+}
+
+// runFetchInfo loads the lazy info-modal fields for a single PID off the
+// UI goroutine. Always returns a InfoDoneMsg so the modal can transition
+// out of the loading state even on permission errors.
+func runFetchInfo(pid int) tea.Cmd {
+	return func() tea.Msg {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		return InfoDoneMsg{
+			PID:     pid,
+			Details: actions.FetchInfo(ctx, pid),
+		}
+	}
+}
+
+// findPIDIndex returns the index of the first finding whose primary process
+// matches pid. Returns -1 when not found (caller falls back to a clamp).
+func findPIDIndex(findings []core.Finding, pid int) int {
+	if pid == 0 {
+		return -1
+	}
+	for i, f := range findings {
+		if f.Process.PID == pid {
+			return i
+		}
+	}
+	return -1
 }
 
 // runRescan re-runs the engine and optionally appends the result to the
