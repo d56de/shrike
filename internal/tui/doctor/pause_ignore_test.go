@@ -2,6 +2,9 @@ package doctor
 
 import (
 	"context"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -114,5 +117,77 @@ func TestActionMsg_KillStillMarksKilled(t *testing.T) {
 	m = m2.(Model)
 	if !m.KilledPIDs[99] {
 		t.Error("expected PID 99 marked killed (kill path regression)")
+	}
+}
+
+func TestIgnore_WritesFileAndFilters(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "ignore.toml")
+	m := Model{
+		Findings:   []core.Finding{{Detector: "runaway", Process: core.ProcessInfo{PID: 7, Command: "node"}}},
+		Selected:   map[int]bool{},
+		Paused:     map[int]core.ProcessInfo{},
+		KilledPIDs: map[int]bool{},
+		IgnorePath: path,
+	}
+
+	// [I] opens the ignore confirm.
+	mm, _ := m.Update(keyRunes('I'))
+	m = mm.(Model)
+	if m.Mode != ModeConfirmIgnore || m.IgnorePending == nil {
+		t.Fatalf("expected ModeConfirmIgnore with pending finding, got mode=%v pending=%v", m.Mode, m.IgnorePending)
+	}
+
+	// [y] confirms: writes the file and drops the matching finding.
+	mm, _ = m.Update(keyRunes('y'))
+	m = mm.(Model)
+	if len(m.Findings) != 0 {
+		t.Errorf("expected the node finding filtered out, got %d findings", len(m.Findings))
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("expected ignore.toml written: %v", err)
+	}
+	if !strings.Contains(string(data), "node") {
+		t.Errorf("expected 'node' in ignore.toml, got:\n%s", string(data))
+	}
+}
+
+func TestIgnore_CancelLeavesNoFile(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "ignore.toml")
+	m := Model{
+		Findings:   []core.Finding{{Detector: "runaway", Process: core.ProcessInfo{PID: 7, Command: "node"}}},
+		Selected:   map[int]bool{},
+		Paused:     map[int]core.ProcessInfo{},
+		KilledPIDs: map[int]bool{},
+		IgnorePath: path,
+	}
+	mm, _ := m.Update(keyRunes('I'))
+	m = mm.(Model)
+	mm, _ = m.Update(keyRunes('n'))
+	m = mm.(Model)
+
+	if m.Mode != ModeList || m.IgnorePending != nil {
+		t.Errorf("expected back to list with no pending, got mode=%v pending=%v", m.Mode, m.IgnorePending)
+	}
+	if len(m.Findings) != 1 {
+		t.Error("expected the finding to remain on cancel")
+	}
+	if _, err := os.Stat(path); err == nil {
+		t.Error("expected no ignore.toml written on cancel")
+	}
+}
+
+func TestIgnore_RefusesSyntheticPausedFinding(t *testing.T) {
+	m := Model{
+		Findings:   []core.Finding{{Detector: "paused", Process: core.ProcessInfo{PID: 7, Command: "node"}}},
+		Selected:   map[int]bool{},
+		Paused:     map[int]core.ProcessInfo{7: {PID: 7, Command: "node"}},
+		KilledPIDs: map[int]bool{},
+		IgnorePath: filepath.Join(t.TempDir(), "ignore.toml"),
+	}
+	mm, _ := m.Update(keyRunes('I'))
+	m = mm.(Model)
+	if m.Mode == ModeConfirmIgnore {
+		t.Error("expected [I] to be a no-op on a synthetic paused finding")
 	}
 }

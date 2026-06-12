@@ -7,6 +7,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/d56de/shrike/internal/actions"
+	"github.com/d56de/shrike/internal/config"
 	"github.com/d56de/shrike/internal/core"
 	"github.com/d56de/shrike/internal/history"
 )
@@ -202,6 +203,7 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case "esc":
 		m.Mode = ModeList
+		m.IgnorePending = nil
 		return m, nil
 	}
 
@@ -210,6 +212,8 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.handleListKey(msg)
 	case ModeConfirm:
 		return m.handleConfirmKey(msg)
+	case ModeConfirmIgnore:
+		return m.handleIgnoreConfirmKey(msg)
 	case ModeRunning:
 		// Ignore all key input while an action is in flight.
 		return m, nil
@@ -332,6 +336,20 @@ func (m Model) handleListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			targets = append(targets, t)
 		}
 		return m, runAction(m.PauseAction, targets)
+	case "I":
+		if m.Cursor < 0 || m.Cursor >= len(m.Findings) {
+			return m.adjustOffset(), nil
+		}
+		f := m.Findings[m.Cursor]
+		// Only the three real detectors have ignore lists; synthetic
+		// "paused" pins cannot be ignored.
+		if f.Detector != "runaway" && f.Detector != "zombie" && f.Detector != "herd" {
+			return m.adjustOffset(), nil
+		}
+		pending := f
+		m.IgnorePending = &pending
+		m.Mode = ModeConfirmIgnore
+		return m, nil
 	default:
 		// Match against registered actions by Key().
 		r := []rune(msg.String())
@@ -387,6 +405,35 @@ func (m Model) handleConfirmKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "end":
 		m.ConfirmOffset = 1 << 30 // clamp below
 		return m.clampConfirmOffset(), nil
+	}
+	return m, nil
+}
+
+// handleIgnoreConfirmKey handles input while the ignore-confirm modal is open.
+func (m Model) handleIgnoreConfirmKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "y", "enter":
+		if m.IgnorePending == nil {
+			m.Mode = ModeList
+			return m, nil
+		}
+		f := *m.IgnorePending
+		if err := config.AppendIgnoreAt(m.IgnorePath, f.Detector, f.Process.Command); err != nil {
+			m.LastResults = []core.ActionResult{{
+				PID: f.Process.PID, Err: err, Message: "ignore failed: " + err.Error(),
+			}}
+			m.IgnorePending = nil
+			m.Mode = ModeResults
+			return m, nil
+		}
+		m = m.filterIgnored(f.Detector, f.Process.Command)
+		m.IgnorePending = nil
+		m.Mode = ModeList
+		return m.adjustOffset(), nil
+	case "n":
+		m.IgnorePending = nil
+		m.Mode = ModeList
+		return m, nil
 	}
 	return m, nil
 }
