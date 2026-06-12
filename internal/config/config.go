@@ -99,8 +99,9 @@ func Path() (string, error) {
 	return filepath.Join(home, ".config", "shrike", "config.toml"), nil
 }
 
-// Load reads the config file and applies defaults for missing sections/fields.
-// Returns the default config if the file does not exist.
+// Load reads the config file and applies defaults for missing sections/fields,
+// then merges the machine-managed ignore.toml on top. Returns the default
+// config (plus any ignores) if config.toml does not exist.
 func Load() (Config, error) {
 	path, err := Path()
 	if err != nil {
@@ -108,14 +109,20 @@ func Load() (Config, error) {
 	}
 	cfg := DefaultConfig()
 	data, err := os.ReadFile(path) //nolint:gosec // path is derived from XDG_CONFIG_HOME or user home, not user input
-	if errors.Is(err, os.ErrNotExist) {
-		return cfg, nil
-	}
-	if err != nil {
+	switch {
+	case errors.Is(err, os.ErrNotExist):
+		// No config.toml — keep defaults, still merge ignore.toml below.
+	case err != nil:
 		return Config{}, fmt.Errorf("read config %s: %w", path, err)
+	default:
+		if _, err := toml.Decode(string(data), &cfg); err != nil {
+			return Config{}, fmt.Errorf("decode config %s: %w", path, err)
+		}
 	}
-	if _, err := toml.Decode(string(data), &cfg); err != nil {
-		return Config{}, fmt.Errorf("decode config %s: %w", path, err)
+	// Merge machine-managed ignore.toml. Best-effort: a hand-corrupted ignore
+	// file must never block the doctor from launching, so the error is dropped.
+	if ip, ipErr := IgnorePath(); ipErr == nil {
+		_ = mergeIgnoresAt(ip, &cfg)
 	}
 	return cfg, nil
 }

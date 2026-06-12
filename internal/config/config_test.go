@@ -79,3 +79,31 @@ min_age = "30m"
 		t.Error("expected default zombie min_age")
 	}
 }
+
+func TestLoad_MergesIgnoreFile(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", tmp)
+
+	ip, err := IgnorePath()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := AppendIgnoreAt(ip, "runaway", "node"); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	found := false
+	for _, c := range cfg.Runaway.Ignore {
+		if c == "node" {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("expected ignore.toml 'node' merged on Load, got %v", cfg.Runaway.Ignore)
+	}
+}
