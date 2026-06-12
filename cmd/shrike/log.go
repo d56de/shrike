@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/d56de/shrike/internal/detectors"
 	"github.com/d56de/shrike/internal/history"
 	"github.com/spf13/cobra"
 )
@@ -52,16 +53,8 @@ var logCmd = &cobra.Command{
 }
 
 func detectorEmoji(name any) string {
-	switch name {
-	case "runaway":
-		return "🔥"
-	case "zombie":
-		return "🧟"
-	case "herd":
-		return "👥"
-	default:
-		return "•"
-	}
+	s, _ := name.(string)
+	return detectors.Emoji(s)
 }
 
 func init() {
