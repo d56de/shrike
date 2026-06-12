@@ -47,6 +47,9 @@ func (m Model) View() string {
 		}
 		title = "Shrike — " + name
 		body = renderConfirmBody(t, m, innerWidth)
+	case ModeConfirmIgnore:
+		title = "Shrike — ignore"
+		body = renderIgnoreConfirmBody(t, m, innerWidth)
 	case ModeRunning:
 		name := "running"
 		if m.PendingAction != nil {
@@ -252,6 +255,10 @@ func renderListBody(t style.Theme, m Model, innerWidth int) string {
 		data := fmt.Sprintf("%-30s  PID %-6d %s %s%.1f%% CPU · %-7s · %-7s %s",
 			cmdLabel, f.Process.PID, bar, cpuPrefix, cpu, rssLabel,
 			formatElapsedShort(int64(f.Process.ElapsedTime.Seconds())), sev)
+		// Pinned paused rows get a marker; a killed row keeps its strikethrough.
+		if m.isPaused(f.Process.PID) && !killed {
+			data = data + "  " + t.Accent.Render("⏸ paused")
+		}
 		if killed {
 			data = t.Killed.Render(data)
 		}
@@ -327,7 +334,7 @@ func keyhintSegments(hasHerd, hasAutoRefresh bool) []string {
 		segs = append(segs, "[→] expand")
 	}
 	segs = append(segs,
-		"[i]nfo", "[s]ample", "[k]ill", "[r]enice",
+		"[i]nfo", "[s]ample", "[k]ill", "[r]enice", "[p]ause", "[I]gnore",
 		"[R] rescan")
 	if hasAutoRefresh {
 		segs = append(segs, "[a]uto-refresh")
@@ -575,6 +582,27 @@ func renderConfirmBody(t style.Theme, m Model, innerWidth int) string {
 	return b.String()
 }
 
+// renderIgnoreConfirmBody renders the ignore-from-TUI confirmation modal.
+func renderIgnoreConfirmBody(t style.Theme, m Model, innerWidth int) string {
+	f := m.IgnorePending
+	if f == nil {
+		return ""
+	}
+	var b strings.Builder
+	b.WriteString(pad("") + "\n")
+	q := fmt.Sprintf("Ignore all '%s' processes in the %s detector?",
+		f.Process.Command, f.Detector)
+	b.WriteString(pad(t.Accent.Render("⏺")+"  "+q) + "\n")
+	b.WriteString(pad(t.Gutter.Render("│")) + "\n")
+	b.WriteString(pad(t.Subtle.Render("  Saved to ignore.toml — they won't be flagged again.")) + "\n")
+	b.WriteString(pad(t.Subtle.Render("  Edit or delete that file by hand to undo.")) + "\n")
+	b.WriteString(pad("") + "\n")
+	b.WriteString(footerDivider(t, innerWidth))
+	b.WriteString(pad("") + "\n")
+	b.WriteString(pad(t.KeyHint.Render("[y] confirm · [n] cancel")) + "\n")
+	return b.String()
+}
+
 // isFindingKilled reports whether the user already signalled the process
 // represented by this finding in the current session. For herds, any group
 // member match counts (bulk-kill signals every PID). For zombies, the kill
@@ -806,6 +834,8 @@ func renderHelpBody(t style.Theme, innerWidth int) string {
 		{"k", "kill (TERM → KILL)"},
 		{"K", "kill immediately (SIGKILL)"},
 		{"r", "renice +10"},
+		{"p", "pause / resume (toggle SIGSTOP/SIGCONT)"},
+		{"I", "ignore process (saved to ignore.toml)"},
 		{"R", "rescan (re-run detectors)"},
 		{"a", "toggle auto-refresh (configure interval in config.toml)"},
 		{"?", "this help"},

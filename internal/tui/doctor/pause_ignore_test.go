@@ -191,3 +191,21 @@ func TestIgnore_RefusesSyntheticPausedFinding(t *testing.T) {
 		t.Error("expected [I] to be a no-op on a synthetic paused finding")
 	}
 }
+
+func TestView_RendersPausedTagAndHints(t *testing.T) {
+	m := Model{
+		Width:      120,
+		Height:     40,
+		Findings:   []core.Finding{{Detector: "paused", Process: core.ProcessInfo{PID: 42, Command: "node"}}},
+		Selected:   map[int]bool{},
+		Paused:     map[int]core.ProcessInfo{42: {PID: 42, Command: "node"}},
+		KilledPIDs: map[int]bool{},
+	}
+	out := m.View()
+	if !strings.Contains(out, "paused") {
+		t.Error("expected '⏸ paused' marker in list output")
+	}
+	if !strings.Contains(out, "[p]ause") || !strings.Contains(out, "[I]gnore") {
+		t.Error("expected [p]ause and [I]gnore in footer hints")
+	}
+}
