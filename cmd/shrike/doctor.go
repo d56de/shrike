@@ -150,7 +150,7 @@ func findingToJSON(ts time.Time, f core.Finding) map[string]any {
 // buildEngine assembles the engine with the requested detectors. If only is
 // empty, all registered detectors run.
 func buildEngine(c cfg.Config, only []string) *core.Engine {
-	all := []core.Detector{detectors.NewRunaway(), detectors.NewZombie(), detectors.NewHerd()}
+	all := []core.Detector{detectors.NewRunaway(), detectors.NewZombie(), detectors.NewHerd(), detectors.NewMemleak()}
 	selected := all
 	if len(only) > 0 {
 		wanted := map[string]bool{}
@@ -179,6 +179,11 @@ func buildEngine(c cfg.Config, only []string) *core.Engine {
 			"min_size":            c.Herd.MinSize,
 			"total_cpu_threshold": c.Herd.TotalCPUThreshold,
 			"ignore":              c.Herd.Ignore,
+		},
+		"memleak": {
+			"rss_threshold": uint64(c.Memleak.RSSThresholdMB) * 1024 * 1024,
+			"min_age":       time.Duration(c.Memleak.MinAge),
+			"ignore":        c.Memleak.Ignore,
 		},
 	}
 
