@@ -35,4 +35,5 @@ func init() {
 	rootCmd.AddCommand(logCmd)
 	rootCmd.AddCommand(configCmd)
 	rootCmd.AddCommand(statsCmd)
+	rootCmd.AddCommand(watchCmd)
 }
