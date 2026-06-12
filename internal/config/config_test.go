@@ -140,3 +140,13 @@ func TestLoad_OverridesMemleakThreshold(t *testing.T) {
 		t.Errorf("expected default MinAge=5m, got %v", time.Duration(cfg.Memleak.MinAge))
 	}
 }
+
+func TestDefaultConfig_HasWatchDefaults(t *testing.T) {
+	c := DefaultConfig()
+	if time.Duration(c.Watch.Interval) != 60*time.Second {
+		t.Errorf("expected interval 60s, got %v", time.Duration(c.Watch.Interval))
+	}
+	if c.Watch.NotifyLevel != "high" {
+		t.Errorf("expected notify_level high, got %q", c.Watch.NotifyLevel)
+	}
+}

@@ -45,5 +45,9 @@ func DefaultConfig() Config {
 			// the [a] hotkey in the TUI.
 			AutoRefreshInterval: 0,
 		},
+		Watch: WatchConfig{
+			Interval:    Duration(60 * time.Second),
+			NotifyLevel: "high",
+		},
 	}
 }

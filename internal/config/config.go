@@ -20,6 +20,7 @@ type Config struct {
 	Memleak MemleakConfig `toml:"memleak"`
 	History HistoryConfig `toml:"history"`
 	UI      UIConfig      `toml:"ui"`
+	Watch   WatchConfig   `toml:"watch"`
 }
 
 // GeneralConfig holds top-level settings.
@@ -72,6 +73,12 @@ type UIConfig struct {
 	// detectors. Zero (default) disables auto-refresh; press [a] in the TUI
 	// to toggle at runtime. Typical useful values: "5s", "10s", "30s".
 	AutoRefreshInterval Duration `toml:"auto_refresh_interval"`
+}
+
+// WatchConfig configures the `shrike watch` loop.
+type WatchConfig struct {
+	Interval    Duration `toml:"interval"`
+	NotifyLevel string   `toml:"notify_level"`
 }
 
 // Duration wraps time.Duration so TOML can unmarshal human-readable strings
