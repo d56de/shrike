@@ -17,6 +17,7 @@ type Config struct {
 	Runaway RunawayConfig `toml:"runaway"`
 	Zombie  ZombieConfig  `toml:"zombie"`
 	Herd    HerdConfig    `toml:"herd"`
+	Memleak MemleakConfig `toml:"memleak"`
 	History HistoryConfig `toml:"history"`
 	UI      UIConfig      `toml:"ui"`
 }
@@ -45,6 +46,13 @@ type HerdConfig struct {
 	TotalCPUThreshold float64  `toml:"total_cpu_threshold"`
 	KnownBadActors    []string `toml:"known_bad_actors"`
 	Ignore            []string `toml:"ignore"`
+}
+
+// MemleakConfig configures the memleak detector.
+type MemleakConfig struct {
+	RSSThresholdMB int      `toml:"rss_threshold_mb"`
+	MinAge         Duration `toml:"min_age"`
+	Ignore         []string `toml:"ignore"`
 }
 
 // HistoryConfig controls the history JSONL behaviour.

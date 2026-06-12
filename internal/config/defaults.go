@@ -27,6 +27,11 @@ func DefaultConfig() Config {
 			KnownBadActors:    []string{},
 			Ignore:            []string{},
 		},
+		Memleak: MemleakConfig{
+			RSSThresholdMB: 1024,
+			MinAge:         Duration(5 * time.Minute),
+			Ignore:         []string{},
+		},
 		History: HistoryConfig{
 			Enabled:      true,
 			MaxSizeMB:    10,

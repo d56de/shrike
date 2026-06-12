@@ -107,3 +107,36 @@ func TestLoad_MergesIgnoreFile(t *testing.T) {
 		t.Errorf("expected ignore.toml 'node' merged on Load, got %v", cfg.Runaway.Ignore)
 	}
 }
+
+func TestDefaultConfig_HasMemleakDefaults(t *testing.T) {
+	c := DefaultConfig()
+	if c.Memleak.RSSThresholdMB != 1024 {
+		t.Errorf("expected RSSThresholdMB=1024, got %d", c.Memleak.RSSThresholdMB)
+	}
+	if time.Duration(c.Memleak.MinAge) != 5*time.Minute {
+		t.Errorf("expected MinAge=5m, got %v", time.Duration(c.Memleak.MinAge))
+	}
+}
+
+func TestLoad_OverridesMemleakThreshold(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", tmp)
+	dir := filepath.Join(tmp, "shrike")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	content := "[memleak]\nrss_threshold_mb = 2048\n"
+	if err := os.WriteFile(filepath.Join(dir, "config.toml"), []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Memleak.RSSThresholdMB != 2048 {
+		t.Errorf("expected 2048, got %d", cfg.Memleak.RSSThresholdMB)
+	}
+	if time.Duration(cfg.Memleak.MinAge) != 5*time.Minute {
+		t.Errorf("expected default MinAge=5m, got %v", time.Duration(cfg.Memleak.MinAge))
+	}
+}
