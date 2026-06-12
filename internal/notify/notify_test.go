@@ -3,6 +3,7 @@ package notify
 import (
 	"errors"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -77,5 +78,22 @@ func TestNotify_OsascriptFallback_NoSubtitle(t *testing.T) {
 	_ = s.Notify(Notification{Title: "T", Message: "M"})
 	if got := rec.args[len(rec.args)-2:]; !reflect.DeepEqual(got, []string{"M", "T"}) {
 		t.Errorf("trailing argv = %v, want [M T]", got)
+	}
+}
+
+func TestNotify_OsascriptFallback_HostileValueLandsVerbatim(t *testing.T) {
+	var rec recorder
+	s := newSystemWith(false, &rec)
+	hostile := `"; do shell script "touch /tmp/x" --`
+	_ = s.Notify(Notification{Title: "T", Message: hostile})
+	// The hostile message must land as a literal final-but-one argv element
+	// (Message, then Title), never interpolated into the AppleScript text.
+	if rec.args[len(rec.args)-2] != hostile {
+		t.Errorf("hostile message = %q, want it verbatim in argv", rec.args[len(rec.args)-2])
+	}
+	for _, a := range rec.args {
+		if a != hostile && strings.Contains(a, "do shell script") {
+			t.Errorf("hostile fragment leaked into script arg %q", a)
+		}
 	}
 }

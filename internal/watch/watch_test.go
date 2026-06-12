@@ -52,6 +52,14 @@ func TestDecide_EscalationNotifies(t *testing.T) {
 	}
 }
 
+func TestDecide_DeEscalationDoesNotNotify(t *testing.T) {
+	w := NewWatcher(core.SeverityHigh)
+	w.Decide([]core.Finding{find("memleak", 1, "vm", core.SeverityCritical)})
+	if got := w.Decide([]core.Finding{find("memleak", 1, "vm", core.SeverityHigh)}); len(got) != 0 {
+		t.Fatalf("de-escalation (still >= level) should be silent, got %d", len(got))
+	}
+}
+
 func TestDecide_DisappearThenReturnNotifiesAgain(t *testing.T) {
 	w := NewWatcher(core.SeverityHigh)
 	f := find("runaway", 1, "node", core.SeverityHigh)
