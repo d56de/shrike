@@ -36,6 +36,8 @@ shrike config edit             # open config.toml in $EDITOR
 
 Exit code of `shrike doctor --json`: `0` no findings, `1` findings present, `2` error.
 
+Ignores added with `[I]` in the TUI are stored in `ignore.toml` next to `config.toml` and merged on load — your hand-written `config.toml` is never rewritten.
+
 ## Detectors
 
 - **🔥 Runaway** — high CPU × long elapsed time (`CPU% × log10(hours+10)`).
@@ -62,6 +64,8 @@ The footer keyhints wrap to multiple lines on narrow terminals so the frame neve
 - `[k]` kill — SIGTERM, escalating to SIGKILL after 3s
 - `[K]` kill immediately (SIGKILL, no escalation)
 - `[r]` renice to `+10`
+- `[p]` pause / resume — SIGSTOP to freeze a runaway, SIGCONT to thaw it; paused rows stay pinned (`⏸ paused`) so they remain resumable
+- `[I]` ignore — add the process to the detector's ignore list (saved to `ignore.toml`); it won't be flagged again
 
 When the cursor sits on a zombie, `[k]` signals the **parent** (zombies are already dead and can't be reaped directly). The confirm modal calls this out explicitly with a warning so you never lose a running GUI app to a stale child process.
 

@@ -5,6 +5,18 @@ All notable changes to `shrike` are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- `[p]` pause/resume action in `shrike doctor`: SIGSTOP freezes a runaway
+  process, SIGCONT thaws it. Paused processes are pinned into the list
+  (`⏸ paused`) so they stay resumable even after detectors stop flagging them.
+- `[I]` ignore-from-TUI: add the selected process to its detector's ignore list
+  without leaving the TUI. Entries persist to a separate machine-managed
+  `ignore.toml`, merged into config on load, so the hand-written `config.toml`
+  is never rewritten.
+
 ## [v0.3.0] — 2026-05-11
 
 ### Added
