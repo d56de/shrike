@@ -59,4 +59,7 @@ func TestPause_ReportsPermissionError(t *testing.T) {
 	if res[0].Err == nil {
 		t.Error("expected error, got nil")
 	}
+	if res[0].Message != "not permitted" {
+		t.Errorf("expected 'not permitted', got %q", res[0].Message)
+	}
 }
