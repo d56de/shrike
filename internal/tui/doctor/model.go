@@ -387,7 +387,7 @@ func (m Model) mergePausedFindings() Model {
 // dropPausedFinding removes any synthetic "paused" finding for the given PID.
 // Real findings for that PID (if any) are left in place.
 func (m Model) dropPausedFinding(pid int) Model {
-	out := m.Findings[:0]
+	out := make([]core.Finding, 0, len(m.Findings))
 	for _, f := range m.Findings {
 		if f.Detector == "paused" && f.Process.PID == pid {
 			continue
@@ -401,7 +401,7 @@ func (m Model) dropPausedFinding(pid int) Model {
 // filterIgnored drops findings matching the just-ignored (detector, command)
 // pair from the current view and re-clamps the cursor.
 func (m Model) filterIgnored(detector, command string) Model {
-	out := m.Findings[:0]
+	out := make([]core.Finding, 0, len(m.Findings))
 	for _, f := range m.Findings {
 		if f.Detector == detector && f.Process.Command == command {
 			continue
