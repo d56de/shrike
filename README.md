@@ -32,9 +32,21 @@ shrike stats                   # GitHub-style activity heatmap (last 13 weeks)
 shrike stats --weeks 26        # half-year view
 shrike config                  # print effective config + path
 shrike config edit             # open config.toml in $EDITOR
+shrike watch                   # foreground loop: scan every 60s, notify on new findings
+shrike watch --interval 30s    # faster cadence
+shrike watch --notify-level critical
 ```
 
 Exit code of `shrike doctor --json`: `0` no findings, `1` findings present, `2` error.
+
+## Watch
+
+`shrike watch` keeps scanning in the foreground and sends a macOS notification the first
+time a new (or escalating) finding appears at or above `--notify-level` (default `high`) —
+deduped, so a persisting problem is announced once, not on every tick. It uses
+`terminal-notifier` if installed, otherwise `osascript`. Each scan is written to history,
+so `shrike stats` and the memleak detector's growth tracking both benefit from leaving it
+running.
 
 Ignores added with `[I]` in the TUI are stored in `ignore.toml` next to `config.toml` and merged on load — your hand-written `config.toml` is never rewritten.
 

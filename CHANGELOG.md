@@ -21,6 +21,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   in-memory sampling — most effective with auto-refresh or `shrike watch`. A one-shot
   scan only flags outright memory hogs. Tunable via the `[memleak]` config section and
   ignorable from the TUI with `[I]`.
+- `shrike watch`: a foreground loop that re-scans on an interval (default 60s), appends each
+  scan to history, prints a per-scan status line, and sends a deduped macOS notification on
+  new or escalating findings at/above `--notify-level` (default `high`). Notifies via
+  `terminal-notifier` when present, else `osascript`. Configurable via the `[watch]` section.
 
 ## [v0.3.0] — 2026-05-11
 
