@@ -81,22 +81,41 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.LastResults = msg.Results
 		m.Mode = ModeResults
 		m.ActionRunning = false
-		// Successfully signalled PIDs are remembered so the list view can
-		// render them as crossed-out without removing them. The list layout
-		// stays stable — no automatic rescan, no cursor reset, no rows
-		// "rücken zusammen". The user presses [R] for fresh data.
 		if m.KilledPIDs == nil {
 			m.KilledPIDs = map[int]bool{}
 		}
+		if m.Paused == nil {
+			m.Paused = map[int]core.ProcessInfo{}
+		}
 		for _, r := range msg.Results {
-			if r.Err == nil {
+			switch r.Message {
+			case "paused":
+				// Already optimistically pinned in the [p] branch.
+			case "resumed":
+				delete(m.Paused, r.PID)
+				m = m.dropPausedFinding(r.PID)
+			case "skipped (zombie)":
+				// no-op
+			default:
+				if r.Err != nil {
+					// Undo the optimistic pin on a failed pause/resume; a
+					// failed kill/renice simply isn't marked killed (as before).
+					delete(m.Paused, r.PID)
+					continue
+				}
 				m.KilledPIDs[r.PID] = true
 			}
 		}
-		// Drop the bulk selection now that the action is done — leaving it
-		// checked on killed entries reads as "still to act on".
+		// Drop the bulk selection now that the action is done.
 		m.Selected = map[int]bool{}
-		return m, nil
+		m = m.mergePausedFindings()
+		if m.Cursor >= len(m.Findings) {
+			m.Cursor = len(m.Findings) - 1
+		}
+		if m.Cursor < 0 {
+			m.Cursor = 0
+		}
+		return m.adjustOffset(), nil
 	case SampleDoneMsg:
 		m.Sampling = false
 		m.SpinnerFrame = 0
@@ -131,6 +150,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.Selected = map[int]bool{}
 			m.Expanded = map[int]bool{}
 			m.KilledPIDs = nil
+			// Re-pin paused rows the rescan no longer flags so they stay
+			// resumable. Done before findPIDIndex so the cursor can land on
+			// a re-pinned row.
+			m = m.mergePausedFindings()
 			m.Cursor = findPIDIndex(m.Findings, prevPID)
 			if m.Cursor < 0 {
 				if m.Cursor = len(m.Findings) - 1; m.Cursor < 0 {
@@ -286,6 +309,29 @@ func (m Model) handleListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.SampleStacks = nil
 			return m, tea.Batch(runSample(target), spinTick())
 		}
+	case "p":
+		if m.PauseAction == nil {
+			return m.adjustOffset(), nil
+		}
+		raw := m.pauseTargets()
+		if len(raw) == 0 {
+			return m.adjustOffset(), nil
+		}
+		if m.Paused == nil {
+			m.Paused = map[int]core.ProcessInfo{}
+		}
+		targets := make([]core.ProcessInfo, 0, len(raw))
+		for _, t := range raw {
+			if _, paused := m.Paused[t.PID]; paused {
+				t.State = core.StateStopped // → SIGCONT (resume)
+			} else {
+				pinned := t
+				pinned.CPUPercent = 0
+				m.Paused[t.PID] = pinned // optimistic pin
+			}
+			targets = append(targets, t)
+		}
+		return m, runAction(m.PauseAction, targets)
 	default:
 		// Match against registered actions by Key().
 		r := []rune(msg.String())
