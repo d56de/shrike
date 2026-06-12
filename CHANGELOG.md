@@ -16,6 +16,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   without leaving the TUI. Entries persist to a separate machine-managed
   `ignore.toml`, merged into config on load, so the hand-written `config.toml`
   is never rewritten.
+- 🧠 `memleak` detector: flags processes over an RSS threshold (default 1 GB) and,
+  across multiple scans, processes whose RSS grows steadily (a likely leak). Stateful,
+  in-memory sampling — most effective with auto-refresh or `shrike watch`. A one-shot
+  scan only flags outright memory hogs. Tunable via the `[memleak]` config section and
+  ignorable from the TUI with `[I]`.
 
 ## [v0.3.0] — 2026-05-11
 

@@ -26,7 +26,7 @@ go install github.com/d56de/shrike/cmd/shrike@latest
 shrike doctor                  # interactive TUI — find, inspect, act
 shrike doctor --threshold 20   # lower the runaway CPU threshold to 20%
 shrike doctor --json           # headless JSON findings for scripting
-shrike doctor --only runaway   # run a specific detector (runaway | zombie | herd)
+shrike doctor --only runaway   # run a specific detector (runaway | zombie | herd | memleak)
 shrike log --since 24h         # history of previous runs
 shrike stats                   # GitHub-style activity heatmap (last 13 weeks)
 shrike stats --weeks 26        # half-year view
@@ -43,6 +43,7 @@ Ignores added with `[I]` in the TUI are stored in `ignore.toml` next to `config.
 - **🔥 Runaway** — high CPU × long elapsed time (`CPU% × log10(hours+10)`).
 - **🧟 Zombie** — processes stuck in `Z` or `T` state. Long-lived helpers like Autodesk Fusion's `AdpSDKUtil` are ignored by default; extend the list under `[zombie] ignore = […]` in `config.toml`.
 - **👥 Herd** — aggregated view of helper-process groups (Chrome renderers, Figma helpers, Claude sessions).
+- **🧠 memleak** — processes using a lot of memory (RSS over a threshold), or whose memory grows steadily across scans (a likely leak). Growth detection needs several samples, so it is most effective with auto-refresh on or under `shrike watch`; a one-shot run only flags outright hogs.
 
 ## Navigation
 
