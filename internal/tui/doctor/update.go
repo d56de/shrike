@@ -343,7 +343,7 @@ func (m Model) handleListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		f := m.Findings[m.Cursor]
 		// Only the three real detectors have ignore lists; synthetic
 		// "paused" pins cannot be ignored.
-		if f.Detector != "runaway" && f.Detector != "zombie" && f.Detector != "herd" {
+		if f.Detector != "runaway" && f.Detector != "zombie" && f.Detector != "herd" && f.Detector != "memleak" {
 			return m.adjustOffset(), nil
 		}
 		pending := f

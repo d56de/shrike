@@ -27,6 +27,7 @@ type ignoreFileData struct {
 	Runaway sectionIgnore `toml:"runaway"`
 	Zombie  sectionIgnore `toml:"zombie"`
 	Herd    sectionIgnore `toml:"herd"`
+	Memleak sectionIgnore `toml:"memleak"`
 }
 
 // section returns a pointer to the ignore slice for the named detector, or nil
@@ -39,6 +40,8 @@ func (d *ignoreFileData) section(detector string) *[]string {
 		return &d.Zombie.Ignore
 	case "herd":
 		return &d.Herd.Ignore
+	case "memleak":
+		return &d.Memleak.Ignore
 	default:
 		return nil
 	}
@@ -128,6 +131,7 @@ func mergeIgnoresAt(path string, cfg *Config) error {
 	cfg.Runaway.Ignore = mergeDedup(cfg.Runaway.Ignore, d.Runaway.Ignore)
 	cfg.Zombie.Ignore = mergeDedup(cfg.Zombie.Ignore, d.Zombie.Ignore)
 	cfg.Herd.Ignore = mergeDedup(cfg.Herd.Ignore, d.Herd.Ignore)
+	cfg.Memleak.Ignore = mergeDedup(cfg.Memleak.Ignore, d.Memleak.Ignore)
 	return nil
 }
 

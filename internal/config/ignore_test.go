@@ -77,3 +77,23 @@ func TestMergeIgnoresAt_MissingFileIsNoop(t *testing.T) {
 		t.Error("missing file should not change config")
 	}
 }
+
+func TestAppendIgnoreAt_MemleakSection(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "ignore.toml")
+	if err := AppendIgnoreAt(path, "memleak", "Electron"); err != nil {
+		t.Fatal(err)
+	}
+	cfg := DefaultConfig()
+	if err := mergeIgnoresAt(path, &cfg); err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, c := range cfg.Memleak.Ignore {
+		if c == "Electron" {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("expected 'Electron' merged into memleak ignore, got %v", cfg.Memleak.Ignore)
+	}
+}

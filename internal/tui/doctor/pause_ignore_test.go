@@ -209,3 +209,18 @@ func TestView_RendersPausedTagAndHints(t *testing.T) {
 		t.Error("expected [p]ause and [I]gnore in footer hints")
 	}
 }
+
+func TestIgnore_AllowsMemleakFinding(t *testing.T) {
+	m := Model{
+		Findings:   []core.Finding{{Detector: "memleak", Process: core.ProcessInfo{PID: 9, Command: "Electron"}}},
+		Selected:   map[int]bool{},
+		Paused:     map[int]core.ProcessInfo{},
+		KilledPIDs: map[int]bool{},
+		IgnorePath: filepath.Join(t.TempDir(), "ignore.toml"),
+	}
+	mm, _ := m.Update(keyRunes('I'))
+	m = mm.(Model)
+	if m.Mode != ModeConfirmIgnore || m.IgnorePending == nil {
+		t.Fatalf("expected [I] to open ignore confirm for a memleak finding, got mode=%v", m.Mode)
+	}
+}
