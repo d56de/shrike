@@ -112,6 +112,10 @@ var doctorCmd = &cobra.Command{
 		// interval. Runtime toggle is the [a] hotkey.
 		model.AutoRefreshInterval = time.Duration(c.UI.AutoRefreshInterval)
 		model.AutoRefreshOn = model.AutoRefreshInterval > 0
+		model.PauseAction = actions_.NewPause()
+		if ip, ipErr := cfg.IgnorePath(); ipErr == nil {
+			model.IgnorePath = ip
+		}
 		prog := tea.NewProgram(model, tea.WithAltScreen())
 		if _, err := prog.Run(); err != nil {
 			return fmt.Errorf("tui: %w", err)
