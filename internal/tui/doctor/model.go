@@ -3,6 +3,7 @@ package doctor
 
 import (
 	"fmt"
+	"sort"
 	"time"
 
 	"github.com/d56de/shrike/internal/actions"
@@ -23,6 +24,7 @@ const (
 	ModeInfo
 	ModeSample
 	ModeHelp
+	ModeConfirmIgnore // ignore-from-TUI confirm modal
 )
 
 // Model is the Bubble Tea model for the doctor screen.
@@ -91,6 +93,23 @@ type Model struct {
 	Sampling     bool
 	SamplePID    int
 	SampleStacks []actions.Stack
+
+	// Paused maps PIDs the user SIGSTOP'd this session to a snapshot of the
+	// process (CPU zeroed). Paused processes are pinned into the findings list
+	// as synthetic "paused" findings so they stay resumable even after the
+	// detectors stop flagging them. Cleared per-PID on resume.
+	Paused map[int]core.ProcessInfo
+
+	// PauseAction performs SIGSTOP/SIGCONT. Injected so tests can stub it.
+	PauseAction core.Action
+
+	// IgnorePending is the finding awaiting an ignore-confirm
+	// (Mode == ModeConfirmIgnore). Nil otherwise.
+	IgnorePending *core.Finding
+
+	// IgnorePath is the path to the machine-managed ignore.toml (injected by
+	// the caller). Empty disables the [I] write.
+	IgnorePath string
 }
 
 // NewModel constructs a doctor Model ready for Bubble Tea.
@@ -106,6 +125,7 @@ func NewModelWithTheme(findings []core.Finding, acts []core.Action, theme style.
 		Actions:  acts,
 		Selected: map[int]bool{},
 		Expanded: map[int]bool{},
+		Paused:   map[int]core.ProcessInfo{},
 		Mode:     ModeList,
 		Theme:    theme,
 	}
@@ -283,6 +303,117 @@ func (m Model) adjustOffset() Model {
 	}
 	if m.Offset < 0 {
 		m.Offset = 0
+	}
+	return m
+}
+
+// isPaused reports whether the PID is currently SIGSTOP'd by the user.
+func (m Model) isPaused(pid int) bool {
+	_, ok := m.Paused[pid]
+	return ok
+}
+
+// pauseTargets resolves the processes a [p] press should signal: the selected
+// findings (or the cursor finding), herds expanded to all members, zombie
+// findings skipped (a dead/reaped process cannot be paused). De-duplicated by
+// PID. State is NOT overridden here — the caller flips already-paused PIDs to
+// StateStopped so Execute sends SIGCONT.
+func (m Model) pauseTargets() []core.ProcessInfo {
+	var targets []core.ProcessInfo
+	collect := func(i int) {
+		if i < 0 || i >= len(m.Findings) {
+			return
+		}
+		f := m.Findings[i]
+		if f.Detector == "zombie" {
+			return
+		}
+		if f.Group != nil {
+			targets = append(targets, f.Group.Parent)
+			targets = append(targets, f.Group.Children...)
+			return
+		}
+		targets = append(targets, f.Process)
+	}
+	if len(m.Selected) > 0 {
+		for i := range m.Selected {
+			collect(i)
+		}
+	} else {
+		collect(m.Cursor)
+	}
+	seen := map[int]bool{}
+	unique := targets[:0]
+	for _, t := range targets {
+		if seen[t.PID] {
+			continue
+		}
+		seen[t.PID] = true
+		unique = append(unique, t)
+	}
+	return unique
+}
+
+// mergePausedFindings appends a synthetic "paused" finding for every paused PID
+// not already present in the findings list, so paused processes stay visible
+// (and resumable) after detectors drop them. PIDs are sorted for a stable
+// render order.
+func (m Model) mergePausedFindings() Model {
+	if len(m.Paused) == 0 {
+		return m
+	}
+	present := map[int]bool{}
+	for _, f := range m.Findings {
+		present[f.Process.PID] = true
+	}
+	pids := make([]int, 0, len(m.Paused))
+	for pid := range m.Paused {
+		if !present[pid] {
+			pids = append(pids, pid)
+		}
+	}
+	sort.Ints(pids)
+	for _, pid := range pids {
+		m.Findings = append(m.Findings, core.Finding{
+			Detector: "paused",
+			Severity: core.SeverityLow,
+			Process:  m.Paused[pid],
+			Reason:   "paused by you",
+		})
+	}
+	return m
+}
+
+// dropPausedFinding removes any synthetic "paused" finding for the given PID.
+// Real findings for that PID (if any) are left in place.
+func (m Model) dropPausedFinding(pid int) Model {
+	out := m.Findings[:0]
+	for _, f := range m.Findings {
+		if f.Detector == "paused" && f.Process.PID == pid {
+			continue
+		}
+		out = append(out, f)
+	}
+	m.Findings = out
+	return m
+}
+
+// filterIgnored drops findings matching the just-ignored (detector, command)
+// pair from the current view and re-clamps the cursor.
+func (m Model) filterIgnored(detector, command string) Model {
+	out := m.Findings[:0]
+	for _, f := range m.Findings {
+		if f.Detector == detector && f.Process.Command == command {
+			continue
+		}
+		out = append(out, f)
+	}
+	m.Findings = out
+	if m.Cursor >= len(m.Findings) {
+		m.Cursor = len(m.Findings) - 1
+	}
+	if m.Cursor < 0 {
+		m.Cursor = 0
 	}
 	return m
 }
