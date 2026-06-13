@@ -35,6 +35,9 @@ shrike config edit             # open config.toml in $EDITOR
 shrike watch                   # foreground loop: scan every 60s, notify on new findings
 shrike watch --interval 30s    # faster cadence
 shrike watch --notify-level critical
+shrike watch --install         # run watch in the background as a LaunchAgent (starts at login)
+shrike watch --status          # is the background agent installed?
+shrike watch --uninstall       # remove the background agent
 ```
 
 Exit code of `shrike doctor --json`: `0` no findings, `1` findings present, `2` error.
@@ -47,6 +50,8 @@ deduped, so a persisting problem is announced once, not on every tick. It uses
 `terminal-notifier` if installed, otherwise `osascript`. Each scan is written to history,
 so `shrike stats` and the memleak detector's growth tracking both benefit from leaving it
 running.
+
+`shrike watch --install` registers a per-user macOS LaunchAgent (`~/Library/LaunchAgents/de.d56.shrike.watch.plist`) that runs `shrike watch` at login and relaunches it if it crashes. Logs go to `shrike.log`. Remove it with `--uninstall`, check it with `--status`.
 
 Ignores added with `[I]` in the TUI are stored in `ignore.toml` next to `config.toml` and merged on load — your hand-written `config.toml` is never rewritten.
 
