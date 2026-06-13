@@ -25,6 +25,7 @@ const (
 	ModeSample
 	ModeHelp
 	ModeConfirmIgnore // ignore-from-TUI confirm modal
+	ModeStats         // activity-heatmap (trends) view
 )
 
 // Model is the Bubble Tea model for the doctor screen.

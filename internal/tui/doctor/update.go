@@ -217,7 +217,7 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case ModeRunning:
 		// Ignore all key input while an action is in flight.
 		return m, nil
-	case ModeResults, ModeInfo, ModeSample, ModeHelp:
+	case ModeResults, ModeInfo, ModeSample, ModeHelp, ModeStats:
 		// Any key returns to list.
 		m.Mode = ModeList
 		return m, nil
@@ -349,6 +349,9 @@ func (m Model) handleListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		pending := f
 		m.IgnorePending = &pending
 		m.Mode = ModeConfirmIgnore
+		return m, nil
+	case "t":
+		m.Mode = ModeStats
 		return m, nil
 	default:
 		// Match against registered actions by Key().
