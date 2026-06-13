@@ -859,8 +859,9 @@ func renderHelpBody(t style.Theme, innerWidth int) string {
 }
 
 // renderStatsBody renders the activity heatmap (reusing internal/stats) sized
-// to fit the frame. Read live — the trends view triggers no render ticks, so
-// View() runs only on real events while it is open.
+// to fit the frame. Read live: View() re-runs stats.Aggregate on each render.
+// That is cheap and the output is stable, so it is fine even when auto-refresh
+// keeps the render loop ticking while the view is open.
 func renderStatsBody(t style.Theme, m Model, innerWidth int) string {
 	weeks := stats.WeeksForWidth(innerWidth - 2) // -2 for pad()'s left margin
 	to := time.Now()
@@ -875,8 +876,12 @@ func renderStatsBody(t style.Theme, m Model, innerWidth int) string {
 		b.WriteString(pad(t.Subtle.Render("(no activity in window)")) + "\n")
 	} else {
 		heatmap := stats.Render(days, summary, stats.RenderOptions{Metric: "scans"})
+		// The legend+summary line has a fixed width independent of the grid;
+		// clip every line to the inner width so a narrow terminal degrades
+		// gracefully instead of hard-wrapping (which corrupts the diff renderer).
+		clip := lipgloss.NewStyle().MaxWidth(innerWidth)
 		for _, line := range strings.Split(strings.TrimRight(heatmap, "\n"), "\n") {
-			b.WriteString(pad(line) + "\n")
+			b.WriteString(pad(clip.Render(line)) + "\n")
 		}
 	}
 	b.WriteString(pad("") + "\n")

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/d56de/shrike/internal/core"
 )
 
@@ -84,5 +85,41 @@ func TestStats_RenderSeededHistory(t *testing.T) {
 	out := m.View()
 	if !strings.Contains(out, "Less") || !strings.Contains(out, "More") {
 		t.Errorf("expected heatmap legend (Less/More) for seeded history, got:\n%s", out)
+	}
+}
+
+// TestStats_RenderNarrowDoesNotOverflow guards against the fixed-width
+// legend+summary line spilling past the frame on an 80-column terminal (which
+// would hard-wrap and corrupt the Bubble Tea diff renderer).
+func TestStats_RenderNarrowDoesNotOverflow(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("XDG_STATE_HOME", dir)
+	statedir := filepath.Join(dir, "shrike")
+	if err := os.MkdirAll(statedir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	ts := time.Now().UTC().Format(time.RFC3339)
+	var sb strings.Builder
+	for i := 0; i < 3; i++ {
+		sb.WriteString(`{"_type":"run","ts":"` + ts + `","mode":"watch"}` + "\n")
+		sb.WriteString(`{"_type":"finding","ts":"` + ts + `","detector":"runaway","severity":"high","pid":1,"command":"node","cpu":99,"rss":1,"elapsed_s":1}` + "\n")
+	}
+	if err := os.WriteFile(filepath.Join(statedir, "history.jsonl"), []byte(sb.String()), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	const width = 80
+	m := Model{
+		Width:      width,
+		Height:     40,
+		Mode:       ModeStats,
+		Selected:   map[int]bool{},
+		Paused:     map[int]core.ProcessInfo{},
+		KilledPIDs: map[int]bool{},
+	}
+	for _, line := range strings.Split(m.View(), "\n") {
+		if w := lipgloss.Width(line); w > width {
+			t.Errorf("trends line exceeds terminal width %d (got %d): %q", width, w, line)
+		}
 	}
 }
