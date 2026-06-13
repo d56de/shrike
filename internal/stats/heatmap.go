@@ -215,3 +215,26 @@ func summaryLine(s Summary) string {
 	}
 	return strings.Join(parts, " · ")
 }
+
+// Heatmap grid geometry used by WeeksForWidth. statsLeftPad is the fixed left
+// offset before the first cell column (month-header pad / weekday label + gap);
+// cellWidth (defined above) is the visual width of one week column.
+const (
+	statsLeftPad  = 5
+	statsMinWeeks = 4
+	statsMaxWeeks = 26
+)
+
+// WeeksForWidth returns how many week-columns fit in `width` terminal columns,
+// clamped to a readable range [statsMinWeeks, statsMaxWeeks]. Pure helper for
+// callers embedding the heatmap in a fixed-width frame.
+func WeeksForWidth(width int) int {
+	weeks := (width - statsLeftPad) / cellWidth
+	if weeks < statsMinWeeks {
+		return statsMinWeeks
+	}
+	if weeks > statsMaxWeeks {
+		return statsMaxWeeks
+	}
+	return weeks
+}

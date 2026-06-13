@@ -70,3 +70,21 @@ func stripANSI(s string) string {
 // single column in this approximation — good enough for the test since we
 // only need to verify byte-vs-column accounting.
 func visualWidth(s string) int { return len([]rune(s)) }
+
+func TestWeeksForWidth(t *testing.T) {
+	cases := []struct {
+		width int
+		want  int
+	}{
+		{width: 0, want: 4},     // tiny → clamped to min
+		{width: 13, want: 4},    // (13-5)/2 = 4
+		{width: 10, want: 4},    // (10-5)/2 = 2 → clamped to min 4
+		{width: 45, want: 20},   // (45-5)/2 = 20
+		{width: 1000, want: 26}, // huge → clamped to max
+	}
+	for _, c := range cases {
+		if got := WeeksForWidth(c.width); got != c.want {
+			t.Errorf("WeeksForWidth(%d) = %d, want %d", c.width, got, c.want)
+		}
+	}
+}
