@@ -8,6 +8,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/d56de/shrike/internal/actions"
 	"github.com/d56de/shrike/internal/core"
+	"github.com/d56de/shrike/internal/stats"
 	"github.com/d56de/shrike/internal/tui/style"
 )
 
@@ -69,6 +70,9 @@ func (m Model) View() string {
 	case ModeHelp:
 		title = "Shrike — help"
 		body = renderHelpBody(t, innerWidth)
+	case ModeStats:
+		title = "Shrike — trends"
+		body = renderStatsBody(t, m, innerWidth)
 	default:
 		body = renderListBody(t, m, innerWidth)
 	}
@@ -335,7 +339,7 @@ func keyhintSegments(hasHerd, hasAutoRefresh bool) []string {
 	}
 	segs = append(segs,
 		"[i]nfo", "[s]ample", "[k]ill", "[r]enice", "[p]ause", "[I]gnore",
-		"[R] rescan")
+		"[t] trends", "[R] rescan")
 	if hasAutoRefresh {
 		segs = append(segs, "[a]uto-refresh")
 	}
@@ -837,6 +841,7 @@ func renderHelpBody(t style.Theme, innerWidth int) string {
 		{"p", "pause / resume (toggle SIGSTOP/SIGCONT)"},
 		{"I", "ignore process (saved to ignore.toml)"},
 		{"R", "rescan (re-run detectors)"},
+		{"t", "activity trends (heatmap)"},
 		{"a", "toggle auto-refresh (configure interval in config.toml)"},
 		{"?", "this help"},
 		{"q / Esc", "quit / close modal"},
@@ -849,6 +854,33 @@ func renderHelpBody(t style.Theme, innerWidth int) string {
 	b.WriteString(pad("") + "\n")
 	b.WriteString(footerDivider(t, innerWidth))
 	b.WriteString(pad("") + "\n")
+	b.WriteString(pad(t.KeyHint.Render("[esc] back")) + "\n")
+	return b.String()
+}
+
+// renderStatsBody renders the activity heatmap (reusing internal/stats) sized
+// to fit the frame. Read live — the trends view triggers no render ticks, so
+// View() runs only on real events while it is open.
+func renderStatsBody(t style.Theme, m Model, innerWidth int) string {
+	weeks := stats.WeeksForWidth(innerWidth - 2) // -2 for pad()'s left margin
+	to := time.Now()
+	from := to.AddDate(0, 0, -7*weeks+1)
+
+	var b strings.Builder
+	b.WriteString(pad("") + "\n")
+	days, summary, err := stats.Aggregate(from, to)
+	if err != nil {
+		b.WriteString(pad(t.Subtle.Render("trends unavailable: "+err.Error())) + "\n")
+	} else if summary.ActiveDays == 0 {
+		b.WriteString(pad(t.Subtle.Render("(no activity in window)")) + "\n")
+	} else {
+		heatmap := stats.Render(days, summary, stats.RenderOptions{Metric: "scans"})
+		for _, line := range strings.Split(strings.TrimRight(heatmap, "\n"), "\n") {
+			b.WriteString(pad(line) + "\n")
+		}
+	}
+	b.WriteString(pad("") + "\n")
+	b.WriteString(footerDivider(t, innerWidth))
 	b.WriteString(pad(t.KeyHint.Render("[esc] back")) + "\n")
 	return b.String()
 }
