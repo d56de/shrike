@@ -1,7 +1,9 @@
 package agent
 
 import (
+	"encoding/xml"
 	"errors"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -117,12 +119,33 @@ func TestUninstall_NoPlistIsOK(t *testing.T) {
 }
 
 func TestLoaded(t *testing.T) {
-	m := newTestManager("/x.plist", &recordRun{}) // run returns nil → loaded
-	if ok, _ := m.Loaded(); !ok {
+	if !newTestManager("/x.plist", &recordRun{}).Loaded() { // run returns nil → loaded
 		t.Error("expected loaded when launchctl print succeeds")
 	}
-	m2 := newTestManager("/x.plist", &recordRun{err: errors.New("not found")})
-	if ok, _ := m2.Loaded(); ok {
+	if newTestManager("/x.plist", &recordRun{err: errors.New("not found")}).Loaded() {
 		t.Error("expected not-loaded when launchctl print fails")
+	}
+}
+
+// TestPlist_WellFormedAndEscaped proves the generated plist parses as XML and
+// that hostile path/label characters are escaped, so a template typo or an
+// unescaped value can't produce a plist launchctl would reject.
+func TestPlist_WellFormedAndEscaped(t *testing.T) {
+	out := Plist(`lbl"x`, "/p/a&b<c>/shrike", "/log.log")
+
+	dec := xml.NewDecoder(strings.NewReader(out))
+	for {
+		_, err := dec.Token()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			t.Fatalf("plist is not well-formed XML: %v\n%s", err, out)
+		}
+	}
+	for _, raw := range []string{"a&b", "<c>", `"x`} {
+		if strings.Contains(out, raw) {
+			t.Errorf("found unescaped %q in plist:\n%s", raw, out)
+		}
 	}
 }

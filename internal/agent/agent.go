@@ -119,10 +119,9 @@ func (m *Manager) Uninstall() error {
 	return nil
 }
 
-// Loaded reports whether the agent is currently bootstrapped.
-func (m *Manager) Loaded() (bool, error) {
-	if err := m.run("print", m.serviceTarget()); err != nil {
-		return false, nil
-	}
-	return true, nil
+// Loaded reports whether the agent is currently bootstrapped. Any launchctl
+// failure (including "no such service") is treated as not loaded — this is a
+// read-only status probe, so an erroring/absent agent is effectively not running.
+func (m *Manager) Loaded() bool {
+	return m.run("print", m.serviceTarget()) == nil
 }
