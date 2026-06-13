@@ -30,3 +30,20 @@ func TestWatchLine(t *testing.T) {
 		t.Errorf("line = %q, want emoji + command", line)
 	}
 }
+
+func TestHandleAgentFlags_MutualExclusion(t *testing.T) {
+	watchInstall, watchUninstall, watchStatus = true, true, false
+	defer func() { watchInstall, watchUninstall, watchStatus = false, false, false }()
+	handled, err := handleAgentFlags(watchCmd)
+	if !handled || err == nil {
+		t.Errorf("expected (handled=true, err!=nil) for conflicting flags, got (%v, %v)", handled, err)
+	}
+}
+
+func TestHandleAgentFlags_NoneSetIsUnhandled(t *testing.T) {
+	watchInstall, watchUninstall, watchStatus = false, false, false
+	handled, err := handleAgentFlags(watchCmd)
+	if handled || err != nil {
+		t.Errorf("expected (false, nil) when no agent flag set, got (%v, %v)", handled, err)
+	}
+}

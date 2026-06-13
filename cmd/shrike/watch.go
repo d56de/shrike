@@ -9,6 +9,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/d56de/shrike/internal/agent"
 	cfg "github.com/d56de/shrike/internal/config"
 	"github.com/d56de/shrike/internal/core"
 	"github.com/d56de/shrike/internal/detectors"
@@ -19,9 +20,12 @@ import (
 )
 
 var (
-	watchInterval time.Duration
-	watchLevel    string
-	watchQuiet    bool
+	watchInterval  time.Duration
+	watchLevel     string
+	watchQuiet     bool
+	watchInstall   bool
+	watchUninstall bool
+	watchStatus    bool
 )
 
 var watchCmd = &cobra.Command{
@@ -37,6 +41,10 @@ Examples:
   shrike watch --notify-level critical
   shrike watch --quiet               # only print when notifying`,
 	RunE: func(cmd *cobra.Command, _ []string) error {
+		if handled, err := handleAgentFlags(cmd); handled || err != nil {
+			return err
+		}
+
 		c, err := cfg.Load()
 		if err != nil {
 			return fmt.Errorf("load config: %w", err)
@@ -115,6 +123,59 @@ func parseLevel(s string) (core.Severity, error) {
 	}
 }
 
+// handleAgentFlags processes the --install/--uninstall/--status management
+// flags. It returns handled=true when one was set (so the foreground loop is
+// skipped), along with the action's error. With no flag set it returns
+// (false, nil) so the caller runs the watch loop.
+func handleAgentFlags(cmd *cobra.Command) (bool, error) {
+	n := 0
+	for _, b := range []bool{watchInstall, watchUninstall, watchStatus} {
+		if b {
+			n++
+		}
+	}
+	if n == 0 {
+		return false, nil
+	}
+	if n > 1 {
+		return true, fmt.Errorf("--install, --uninstall, and --status are mutually exclusive")
+	}
+
+	exe, err := os.Executable()
+	if err != nil {
+		return true, fmt.Errorf("resolve shrike binary path: %w", err)
+	}
+	logPath, err := history.LogPath()
+	if err != nil {
+		return true, err
+	}
+	mgr, err := agent.NewManager(exe, logPath)
+	if err != nil {
+		return true, err
+	}
+	out := cmd.OutOrStdout()
+
+	switch {
+	case watchInstall:
+		if err := mgr.Install(); err != nil {
+			return true, err
+		}
+		_, _ = fmt.Fprintf(out, "✓ shrike watch installed as a LaunchAgent — starts at login.\n  Logs: %s\n", mgr.LogPath)
+	case watchUninstall:
+		if err := mgr.Uninstall(); err != nil {
+			return true, err
+		}
+		_, _ = fmt.Fprintln(out, "✓ shrike watch LaunchAgent removed")
+	case watchStatus:
+		if mgr.Loaded() {
+			_, _ = fmt.Fprintf(out, "running (LaunchAgent loaded)\n  plist: %s\n", mgr.PlistPath)
+		} else {
+			_, _ = fmt.Fprintln(out, "not installed\n  (run `shrike watch --install` to run in the background)")
+		}
+	}
+	return true, nil
+}
+
 // watchLine formats the one-line per-scan status output.
 func watchLine(findings []core.Finding) string {
 	ts := time.Now().Format("15:04:05")
@@ -152,4 +213,7 @@ func init() {
 	watchCmd.Flags().DurationVar(&watchInterval, "interval", 60*time.Second, "scan interval (overrides config)")
 	watchCmd.Flags().StringVar(&watchLevel, "notify-level", "high", "minimum severity to notify: low|medium|high|critical")
 	watchCmd.Flags().BoolVar(&watchQuiet, "quiet", false, "suppress the per-scan status line")
+	watchCmd.Flags().BoolVar(&watchInstall, "install", false, "install shrike watch as a background LaunchAgent (starts at login)")
+	watchCmd.Flags().BoolVar(&watchUninstall, "uninstall", false, "remove the shrike watch LaunchAgent")
+	watchCmd.Flags().BoolVar(&watchStatus, "status", false, "show whether the LaunchAgent is installed")
 }
