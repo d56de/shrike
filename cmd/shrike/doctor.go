@@ -165,6 +165,14 @@ func buildEngine(c cfg.Config, only []string) *core.Engine {
 		}
 	}
 
+	// rss_threshold_mb is a small user-config value; guard the int→uint64 cast.
+	// A negative/zero value yields 0, which the memleak detector treats as
+	// "use the built-in default".
+	var memleakRSS uint64
+	if mb := c.Memleak.RSSThresholdMB; mb > 0 {
+		memleakRSS = uint64(mb) * 1024 * 1024
+	}
+
 	configs := map[string]core.DetectorConfig{
 		"runaway": {
 			"cpu_threshold": c.Runaway.CPUThreshold,
@@ -181,7 +189,7 @@ func buildEngine(c cfg.Config, only []string) *core.Engine {
 			"ignore":              c.Herd.Ignore,
 		},
 		"memleak": {
-			"rss_threshold": uint64(c.Memleak.RSSThresholdMB) * 1024 * 1024,
+			"rss_threshold": memleakRSS,
 			"min_age":       time.Duration(c.Memleak.MinAge),
 			"ignore":        c.Memleak.Ignore,
 		},

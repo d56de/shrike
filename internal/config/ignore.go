@@ -107,7 +107,7 @@ func loadIgnoreFile(path string) (*ignoreFileData, error) {
 
 // writeIgnoreFile serialises d to path with the managed header comment.
 func writeIgnoreFile(path string, d *ignoreFileData) error {
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
 		return fmt.Errorf("create config dir: %w", err)
 	}
 	var buf bytes.Buffer

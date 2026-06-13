@@ -97,7 +97,7 @@ func (m *Manager) plist() string { return Plist(m.Label, m.ExecPath, m.LogPath) 
 // Install writes the plist and (re)loads it. Idempotent: an already-loaded
 // agent is booted out first, then bootstrapped.
 func (m *Manager) Install() error {
-	if err := os.MkdirAll(filepath.Dir(m.PlistPath), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(m.PlistPath), 0o750); err != nil {
 		return fmt.Errorf("create LaunchAgents dir: %w", err)
 	}
 	if err := os.WriteFile(m.PlistPath, []byte(m.plist()), 0o644); err != nil { //nolint:gosec // user-owned config
