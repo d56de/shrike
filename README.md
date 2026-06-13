@@ -66,6 +66,7 @@ Ignores added with `[I]` in the TUI are stored in `ignore.toml` next to `config.
 - `?` — keyboard help.
 - `R` — rescan.
 - `a` — toggle auto-refresh (only active when `[ui] auto_refresh_interval` is set in `config.toml`, e.g. `"5s"`).
+- `[t]` trends — open the activity heatmap (same data as `shrike stats`) without leaving the TUI.
 - `q` / `Esc` — quit / close modal.
 
 The footer keyhints wrap to multiple lines on narrow terminals so the frame never overflows.

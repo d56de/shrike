@@ -25,6 +25,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   scan to history, prints a per-scan status line, and sends a deduped macOS notification on
   new or escalating findings at/above `--notify-level` (default `high`). Notifies via
   `terminal-notifier` when present, else `osascript`. Configurable via the `[watch]` section.
+- `[t]` trends view in `shrike doctor`: opens the activity heatmap (the same data as
+  `shrike stats`) inside the TUI, sized to the terminal width. Any key returns to the list.
 
 ## [v0.3.0] — 2026-05-11
 
