@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Elapsed-time in the `shrike doctor` list is now tinted on a duration heat ramp (amber ≥ 12h,
+  orange ≥ 2 days, red ≥ 7 days), so a long-running process visibly explains its time-weighted
+  runaway severity.
+
 ## [v0.4.1] — 2026-06-13
 
 ### Fixed
