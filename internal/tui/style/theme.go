@@ -18,8 +18,9 @@ type Theme struct {
 	Gutter         lipgloss.Style // left tree-gutter "│ "
 	CPUBarFilled   lipgloss.Style
 	CPUBarEmpty    lipgloss.Style
-	Accent         lipgloss.Style // status dot, active highlights
-	Killed         lipgloss.Style // rows for PIDs already signalled in this session
+	Accent         lipgloss.Style    // status dot, active highlights
+	Killed         lipgloss.Style    // rows for PIDs already signalled in this session
+	AgeHeat        [4]lipgloss.Style // elapsed-time heat ramp by ageHeatLevel: 0 plain, 1 amber, 2 orange, 3 red
 }
 
 // DefaultTheme returns the baseline Lipgloss theme.
@@ -45,6 +46,12 @@ func DefaultTheme() Theme {
 			"high":     lipgloss.NewStyle().Foreground(lipgloss.Color("#FD8282")),
 			"medium":   lipgloss.NewStyle().Foreground(lipgloss.Color("#FF9F72")),
 			"low":      lipgloss.NewStyle().Foreground(lipgloss.Color("#FEFE7E")),
+		},
+		AgeHeat: [4]lipgloss.Style{
+			lipgloss.NewStyle(), // 0 — < 12h, plain
+			lipgloss.NewStyle().Foreground(lipgloss.Color("214")), // 1 — ≥ 12h, amber
+			lipgloss.NewStyle().Foreground(lipgloss.Color("208")), // 2 — ≥ 2d, orange
+			lipgloss.NewStyle().Foreground(lipgloss.Color("160")), // 3 — ≥ 7d, red
 		},
 	}
 }
