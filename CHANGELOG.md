@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- The `shrike stats` / `[t]` trends heatmap now uses a green ramp harmonized with the doctor
+  theme (anchored on the cursor teal `#49A281` and checkbox mint `#7EE787`) instead of a
+  standalone neon-green scale.
+
+### Fixed
+
+- `shrike doctor` list rows no longer overflow and get clipped on narrow terminals (including
+  the classic 80 columns). Rows are clipped to the frame width (no wrap or colour bleed) and,
+  when narrow, drop the redundant severity label and shrink the command column so the CPU / RSS
+  / runtime fields stay visible.
+
 ## [v0.4.2] — 2026-06-14
 
 ### Added
