@@ -256,9 +256,14 @@ func renderListBody(t style.Theme, m Model, innerWidth int) string {
 		// so the row stays in place after a kill — the user can still see
 		// what was acted on. Leave cursor + checkbox glyph un-restyled so
 		// they remain readable; the ✕ in the box already carries the state.
-		data := fmt.Sprintf("%-30s  PID %-6d %s %s%.1f%% CPU · %-7s · %-7s %s",
-			cmdLabel, f.Process.PID, bar, cpuPrefix, cpu, rssLabel,
-			formatElapsedShort(int64(f.Process.ElapsedTime.Seconds())), sev)
+		// Pad the age to width first, THEN tint it — styling a %-Ns field would
+		// inflate the byte count with ANSI escapes and break column alignment.
+		ageStr := fmt.Sprintf("%-7s", formatElapsedShort(int64(f.Process.ElapsedTime.Seconds())))
+		if !killed {
+			ageStr = t.AgeHeat[ageHeatLevel(f.Process.ElapsedTime)].Render(ageStr)
+		}
+		data := fmt.Sprintf("%-30s  PID %-6d %s %s%.1f%% CPU · %-7s · %s %s",
+			cmdLabel, f.Process.PID, bar, cpuPrefix, cpu, rssLabel, ageStr, sev)
 		// Pinned paused rows get a marker; a killed row keeps its strikethrough.
 		if m.isPaused(f.Process.PID) && !killed {
 			data = data + "  " + t.Accent.Render("⏸ paused")
@@ -488,6 +493,21 @@ func formatElapsedShort(sec int64) string {
 		return fmt.Sprintf("%dh %dm", hours, mins%60)
 	}
 	return fmt.Sprintf("%dd %dh", hours/24, hours%24)
+}
+
+// ageHeatLevel maps a process's elapsed runtime to a 0–3 "heat" level used to
+// tint the age field: 0 < 12h, 1 ≥ 12h, 2 ≥ 2d, 3 ≥ 7d.
+func ageHeatLevel(d time.Duration) int {
+	switch {
+	case d >= 7*24*time.Hour:
+		return 3
+	case d >= 2*24*time.Hour:
+		return 2
+	case d >= 12*time.Hour:
+		return 1
+	default:
+		return 0
+	}
 }
 
 func renderConfirmBody(t style.Theme, m Model, innerWidth int) string {
