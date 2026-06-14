@@ -23,11 +23,11 @@ const (
 // light theme they still read as "more green = more activity", just with
 // less contrast.
 var heatmapColors = [5]lipgloss.Color{
-	lipgloss.Color("236"), // 0 — no activity
-	lipgloss.Color("22"),  // 1 — low
-	lipgloss.Color("28"),  // 2 — medium
-	lipgloss.Color("34"),  // 3 — high
-	lipgloss.Color("46"),  // 4 — peak
+	lipgloss.Color("#21262d"), // 0 — no activity
+	lipgloss.Color("#1e4632"), // 1 — low
+	lipgloss.Color("#2e7d54"), // 2 — medium
+	lipgloss.Color("#49A281"), // 3 — high (doctor cursor teal)
+	lipgloss.Color("#7EE787"), // 4 — peak (doctor checkbox mint)
 }
 
 // RenderOptions tweaks the heatmap output. Zero values use sensible defaults.
