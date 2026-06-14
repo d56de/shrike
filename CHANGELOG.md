@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.4.2] — 2026-06-14
+
 ### Added
 
 - Elapsed-time in the `shrike doctor` list is now tinted on a duration heat ramp (amber ≥ 12h,
@@ -85,6 +87,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Frame overflow on small terminals when too many findings were detected — previously the bottom of the frame and the keyhints were clipped off-screen.
 
+[v0.4.2]: https://github.com/d56de/shrike/releases/tag/v0.4.2
 [v0.4.1]: https://github.com/d56de/shrike/releases/tag/v0.4.1
 [v0.4.0]: https://github.com/d56de/shrike/releases/tag/v0.4.0
 [v0.3.0]: https://github.com/d56de/shrike/releases/tag/v0.3.0
