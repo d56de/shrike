@@ -234,18 +234,39 @@ func renderListBody(t style.Theme, m Model, innerWidth int) string {
 		sevLabel := strings.ToUpper(sevName[:1]) + sevName[1:]
 		sev := t.Subtle.Render(sevLabel)
 
+		// Responsive widths: the row is fixed except the command column (left)
+		// and the trailing severity label (right). Shrink the command column and
+		// drop the (redundant — the bar is severity-tinted) severity label on
+		// narrow terminals so the right-hand fields stay visible. The clip below
+		// is the hard guarantee; these are best-effort.
+		cmdW := 30
+		sevShown := innerWidth >= 92
+		if !sevShown {
+			cmdW = innerWidth - 56
+			if cmdW < 14 {
+				cmdW = 14
+			}
+			if cmdW > 30 {
+				cmdW = 30
+			}
+		}
+
 		// For herds, show aggregate CPU/RSS + "×N" count and a Σ prefix on
 		// the CPU % so it's visually obvious the number is a sum across
 		// multiple processes (otherwise a row like "PID 75006  304.3% CPU"
 		// misleadingly reads as one process pegging 3 cores).
 		cpu := f.Process.CPUPercent
 		rss := f.Process.RSS
-		cmdLabel := truncate(f.Process.Command, 30)
+		cmdLabel := truncate(f.Process.Command, cmdW)
 		cpuPrefix := " "
 		if f.Group != nil {
 			cpu = f.Group.TotalCPU
 			rss = f.Group.TotalRSS
-			cmdLabel = truncate(f.Process.Command, 26) + fmt.Sprintf(" ×%d", len(f.Group.Children)+1)
+			herdW := cmdW - 4
+			if herdW < 6 {
+				herdW = 6
+			}
+			cmdLabel = truncate(f.Process.Command, herdW) + fmt.Sprintf(" ×%d", len(f.Group.Children)+1)
 			cpuPrefix = t.Subtle.Render("Σ")
 		}
 
@@ -262,8 +283,11 @@ func renderListBody(t style.Theme, m Model, innerWidth int) string {
 		if !killed {
 			ageStr = t.AgeHeat[ageHeatLevel(f.Process.ElapsedTime)].Render(ageStr)
 		}
-		data := fmt.Sprintf("%-30s  PID %-6d %s %s%.1f%% CPU · %-7s · %s %s",
-			cmdLabel, f.Process.PID, bar, cpuPrefix, cpu, rssLabel, ageStr, sev)
+		data := fmt.Sprintf("%-*s  PID %-6d %s %s%.1f%% CPU · %-7s · %s",
+			cmdW, cmdLabel, f.Process.PID, bar, cpuPrefix, cpu, rssLabel, ageStr)
+		if sevShown {
+			data += " " + sev
+		}
 		// Pinned paused rows get a marker; a killed row keeps its strikethrough.
 		if m.isPaused(f.Process.PID) && !killed {
 			data = data + "  " + t.Accent.Render("⏸ paused")
@@ -272,6 +296,7 @@ func renderListBody(t style.Theme, m Model, innerWidth int) string {
 			data = t.Killed.Render(data)
 		}
 		row := fmt.Sprintf("%s  %s %s", cursor, box, data)
+		row = lipgloss.NewStyle().MaxWidth(innerWidth).Render(row)
 		b.WriteString(pad(row) + "\n")
 
 		// Path line always shown (truncated for long paths).
