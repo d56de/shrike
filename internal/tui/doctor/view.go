@@ -171,6 +171,12 @@ func renderListBody(t style.Theme, m Model, innerWidth int) string {
 		t.Accent.Render("⏺"),
 		len(m.Findings), plural(len(m.Findings)),
 		statusTail)
+	for _, f := range m.Findings {
+		if f.System {
+			header = fmt.Sprintf("%s %d finding%s %s", t.Accent.Render("⏺"), len(m.Findings), plural(len(m.Findings)), statusTail)
+			break
+		}
+	}
 	b.WriteString(pad(header) + "\n")
 
 	// Connector line from ⏺ down to first cursor.
@@ -285,6 +291,9 @@ func renderListBody(t style.Theme, m Model, innerWidth int) string {
 		}
 		data := fmt.Sprintf("%-*s  PID %-6d %s %s%.1f%% CPU · %-7s · %s",
 			cmdW, cmdLabel, f.Process.PID, bar, cpuPrefix, cpu, rssLabel, ageStr)
+		if f.Detector == "gpu" {
+			data = gpuRow(f, cmdW)
+		}
 		if sevShown {
 			data += " " + sev
 		}
@@ -300,7 +309,11 @@ func renderListBody(t style.Theme, m Model, innerWidth int) string {
 		b.WriteString(pad(row) + "\n")
 
 		// Path line always shown (truncated for long paths).
-		b.WriteString(pad(t.Gutter.Render("│")+"   "+t.Subtle.Render(truncatePath(f.Process.FullPath, pathMax))) + "\n")
+		secondary := f.Process.FullPath
+		if f.Detector == "gpu" {
+			secondary = f.Reason
+		}
+		b.WriteString(pad(t.Gutter.Render("│")+"   "+t.Subtle.Render(truncatePath(secondary, pathMax))) + "\n")
 
 		// Reason line: only when it adds info beyond the top row.
 		// - Runaway: "49% CPU for 7d" — already in top row. Skip.

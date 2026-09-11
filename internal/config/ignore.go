@@ -28,6 +28,7 @@ type ignoreFileData struct {
 	Zombie  sectionIgnore `toml:"zombie"`
 	Herd    sectionIgnore `toml:"herd"`
 	Memleak sectionIgnore `toml:"memleak"`
+	GPU     sectionIgnore `toml:"gpu"`
 }
 
 // section returns a pointer to the ignore slice for the named detector, or nil
@@ -42,6 +43,8 @@ func (d *ignoreFileData) section(detector string) *[]string {
 		return &d.Herd.Ignore
 	case "memleak":
 		return &d.Memleak.Ignore
+	case "gpu":
+		return &d.GPU.Ignore
 	default:
 		return nil
 	}
@@ -132,6 +135,7 @@ func mergeIgnoresAt(path string, cfg *Config) error {
 	cfg.Zombie.Ignore = mergeDedup(cfg.Zombie.Ignore, d.Zombie.Ignore)
 	cfg.Herd.Ignore = mergeDedup(cfg.Herd.Ignore, d.Herd.Ignore)
 	cfg.Memleak.Ignore = mergeDedup(cfg.Memleak.Ignore, d.Memleak.Ignore)
+	cfg.GPU.Ignore = mergeDedup(cfg.GPU.Ignore, d.GPU.Ignore)
 	return nil
 }
 

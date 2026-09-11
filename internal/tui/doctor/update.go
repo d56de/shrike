@@ -143,8 +143,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// doesn't yank focus away from whatever the user was watching.
 			// Fallback: clamp the old index when the PID is gone.
 			var prevPID int
+			var prevSystem *core.Finding
 			if m.Cursor >= 0 && m.Cursor < len(m.Findings) {
 				prevPID = m.Findings[m.Cursor].Process.PID
+				if f := m.Findings[m.Cursor]; f.System {
+					prevSystem = &f
+				}
 			}
 			m.Findings = msg.Findings
 			m.RunDuration = msg.Duration
@@ -156,6 +160,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// a re-pinned row.
 			m = m.mergePausedFindings()
 			m.Cursor = findPIDIndex(m.Findings, prevPID)
+			if prevSystem != nil {
+				m.Cursor = findSystemIndex(m.Findings, *prevSystem)
+			}
 			if m.Cursor < 0 {
 				if m.Cursor = len(m.Findings) - 1; m.Cursor < 0 {
 					m.Cursor = 0
@@ -266,6 +273,9 @@ func (m Model) handleListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.Cursor = 0
 		}
 	case " ":
+		if m.Cursor >= 0 && m.Cursor < len(m.Findings) && m.Findings[m.Cursor].System {
+			return m, nil
+		}
 		if m.Selected[m.Cursor] {
 			delete(m.Selected, m.Cursor)
 		} else {
@@ -294,6 +304,9 @@ func (m Model) handleListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			}
 		}
 	case "i":
+		if m.Cursor >= 0 && m.Cursor < len(m.Findings) && m.Findings[m.Cursor].System {
+			return m, nil
+		}
 		m.Mode = ModeInfo
 		if m.Cursor >= 0 && m.Cursor < len(m.Findings) {
 			pid := m.Findings[m.Cursor].Process.PID
@@ -305,6 +318,9 @@ func (m Model) handleListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 	case "s":
 		if m.Cursor >= 0 && m.Cursor < len(m.Findings) {
+			if m.Findings[m.Cursor].System {
+				return m, nil
+			}
 			target := m.Findings[m.Cursor].Process
 			m.Mode = ModeSample
 			m.Sampling = true
@@ -341,9 +357,12 @@ func (m Model) handleListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m.adjustOffset(), nil
 		}
 		f := m.Findings[m.Cursor]
+		if f.System {
+			return m, nil
+		}
 		// Only the three real detectors have ignore lists; synthetic
 		// "paused" pins cannot be ignored.
-		if f.Detector != "runaway" && f.Detector != "zombie" && f.Detector != "herd" && f.Detector != "memleak" {
+		if f.Detector != "runaway" && f.Detector != "zombie" && f.Detector != "herd" && f.Detector != "memleak" && f.Detector != "gpu" {
 			return m.adjustOffset(), nil
 		}
 		pending := f
@@ -359,6 +378,9 @@ func (m Model) handleListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if len(r) == 1 {
 			for _, a := range m.Actions {
 				if a.Key() == r[0] {
+					if len(m.selectedTargets()) == 0 {
+						return m, nil
+					}
 					m.PendingAction = a
 					if a.Destructive() {
 						m.Mode = ModeConfirm
@@ -379,6 +401,10 @@ func (m Model) handleConfirmKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "y", "enter":
 		action := m.PendingAction
 		targets := m.selectedTargets()
+		if action == nil || len(targets) == 0 {
+			m.Mode = ModeList
+			return m, nil
+		}
 		m.Mode = ModeRunning
 		m.ActionRunning = true
 		m.SpinnerFrame = 0
@@ -428,6 +454,9 @@ func (m Model) handleIgnoreConfirmKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.IgnorePending = nil
 			m.Mode = ModeResults
 			return m, nil
+		}
+		if m.Engine != nil {
+			m.Engine.Ignore(f.Detector, f.Process.Command)
 		}
 		m = m.filterIgnored(f.Detector, f.Process.Command)
 		m.IgnorePending = nil

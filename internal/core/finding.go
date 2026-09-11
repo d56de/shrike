@@ -35,6 +35,8 @@ type Finding struct {
 	Score    float64 // internal sort key; not displayed in main UI
 	Reason   string  // human-readable one-liner
 	Group    *HerdGroup
+	System   bool // device/system finding: never a process-action target
+	GPU      *GPUFinding
 }
 
 // HerdGroup is attached to herd findings; non-nil only for detector=="herd".

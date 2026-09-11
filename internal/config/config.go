@@ -18,6 +18,7 @@ type Config struct {
 	Zombie  ZombieConfig  `toml:"zombie"`
 	Herd    HerdConfig    `toml:"herd"`
 	Memleak MemleakConfig `toml:"memleak"`
+	GPU     GPUConfig     `toml:"gpu"`
 	History HistoryConfig `toml:"history"`
 	UI      UIConfig      `toml:"ui"`
 	Watch   WatchConfig   `toml:"watch"`
@@ -54,6 +55,14 @@ type MemleakConfig struct {
 	RSSThresholdMB int      `toml:"rss_threshold_mb"`
 	MinAge         Duration `toml:"min_age"`
 	Ignore         []string `toml:"ignore"`
+}
+
+// GPUConfig controls sampled GPU overload detection.
+type GPUConfig struct {
+	Enabled     bool     `toml:"enabled"`
+	Threshold   float64  `toml:"threshold"`
+	MinDuration Duration `toml:"min_duration"`
+	Ignore      []string `toml:"ignore"`
 }
 
 // HistoryConfig controls the history JSONL behaviour.

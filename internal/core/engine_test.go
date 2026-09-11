@@ -2,12 +2,52 @@ package core
 
 import (
 	"context"
+	"sync"
 	"testing"
 )
 
 type fakeSnapshotter struct {
 	procs []ProcessInfo
 	err   error
+}
+
+type contextualTestDetector struct {
+	fakeDetector
+	expected context.Context
+	received bool
+}
+
+func (d *contextualTestDetector) DetectContext(ctx context.Context, _ []ProcessInfo, _ DetectorConfig) []Finding {
+	d.received = ctx == d.expected
+	return nil
+}
+
+func TestEnginePassesContextToIOAndCanIgnoreDuringRun(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	d := &contextualTestDetector{fakeDetector: fakeDetector{name: "gpu"}, expected: ctx}
+	e := &Engine{Snapshotter: fakeSnapshotter{}, Detectors: []Detector{d}}
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for range 50 {
+			e.Ignore("gpu", "Renderer")
+		}
+	}()
+	for range 50 {
+		if _, err := e.Run(ctx); err != nil {
+			t.Fatal(err)
+		}
+	}
+	wg.Wait()
+	if !d.received {
+		t.Fatal("context was not forwarded")
+	}
+	ignore, _ := e.Configs["gpu"]["ignore"].([]string)
+	if len(ignore) != 1 {
+		t.Fatalf("ignore not idempotent: %v", ignore)
+	}
 }
 
 func (f fakeSnapshotter) Snapshot(_ context.Context) ([]ProcessInfo, error) {

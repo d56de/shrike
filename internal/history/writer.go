@@ -71,6 +71,16 @@ func (w *Writer) AppendRun(run RunMeta, findings []core.Finding) error {
 			"rss":       f.Process.RSS,
 			"elapsed_s": int64(f.Process.ElapsedTime.Seconds()),
 		}
+		if f.GPU != nil {
+			rec["gpu"] = f.GPU
+		}
+		if f.System {
+			rec["scope"] = "system"
+			delete(rec, "pid")
+			delete(rec, "cpu")
+			delete(rec, "rss")
+			delete(rec, "elapsed_s")
+		}
 		if err := writeLine(w.f, rec); err != nil {
 			return err
 		}

@@ -32,6 +32,12 @@ func DefaultConfig() Config {
 			MinAge:         Duration(5 * time.Minute),
 			Ignore:         []string{},
 		},
+		GPU: GPUConfig{
+			Enabled:     true,
+			Threshold:   90,
+			MinDuration: Duration(30 * time.Second),
+			Ignore:      []string{},
+		},
 		History: HistoryConfig{
 			Enabled:      true,
 			MaxSizeMB:    10,

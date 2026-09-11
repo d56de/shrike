@@ -2,6 +2,8 @@ package core
 
 import (
 	"context"
+	"maps"
+	"slices"
 	"sort"
 	"sync"
 
@@ -13,12 +15,29 @@ type Snapshotter interface {
 	Snapshot(ctx context.Context) ([]ProcessInfo, error)
 }
 
-// Engine wires a snapshotter to a slice of detectors. Engines are stateless
-// across Run calls — construct once, reuse.
+// Engine wires a snapshotter to detectors. Reuse the engine across sequential
+// Runs so stateful detectors can retain observation history.
 type Engine struct {
 	Snapshotter Snapshotter
 	Detectors   []Detector
 	Configs     map[string]DetectorConfig // keyed by Detector.Name()
+	configMu    sync.RWMutex
+}
+
+// Ignore updates an in-session ignore list without racing an active scan.
+func (e *Engine) Ignore(detector, command string) {
+	e.configMu.Lock()
+	defer e.configMu.Unlock()
+	if e.Configs == nil {
+		e.Configs = map[string]DetectorConfig{}
+	}
+	if e.Configs[detector] == nil {
+		e.Configs[detector] = DetectorConfig{}
+	}
+	ignore, _ := e.Configs[detector]["ignore"].([]string)
+	if !slices.Contains(ignore, command) {
+		e.Configs[detector]["ignore"] = append(slices.Clone(ignore), command)
+	}
 }
 
 // Run takes a fresh snapshot, runs every detector in parallel, merges and
@@ -36,8 +55,16 @@ func (e *Engine) Run(ctx context.Context) ([]Finding, error) {
 	)
 	for _, d := range e.Detectors {
 		d := d
+		e.configMu.RLock()
+		cfg := maps.Clone(e.Configs[d.Name()])
+		e.configMu.RUnlock()
 		g.Go(func() error {
-			fs := d.Detect(snap, e.Configs[d.Name()])
+			var fs []Finding
+			if contextual, ok := d.(ContextDetector); ok {
+				fs = contextual.DetectContext(ctx, snap, cfg)
+			} else {
+				fs = d.Detect(snap, cfg)
+			}
 			mu.Lock()
 			all = append(all, fs...)
 			mu.Unlock()

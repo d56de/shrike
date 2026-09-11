@@ -43,6 +43,13 @@ func (w *Watcher) Decide(findings []core.Finding) []notify.Notification {
 }
 
 func key(f core.Finding) string {
+	if f.System {
+		var id uint64
+		if f.GPU != nil {
+			id = f.GPU.DeviceID
+		}
+		return fmt.Sprintf("%s:system:%d", f.Detector, id)
+	}
 	return fmt.Sprintf("%s:%d:%s", f.Detector, f.Process.PID, f.Process.Command)
 }
 
@@ -58,9 +65,13 @@ func summarize(fresh []core.Finding) []notify.Notification {
 }
 
 func detail(f core.Finding) notify.Notification {
+	message := fmt.Sprintf("%s %s (PID %d) — %s", detectors.Emoji(f.Detector), f.Process.Command, f.Process.PID, f.Reason)
+	if f.System {
+		message = fmt.Sprintf("%s %s — %s", detectors.Emoji(f.Detector), f.Process.Command, f.Reason)
+	}
 	return notify.Notification{
 		Title:   fmt.Sprintf("Shrike: %s %s", capitalize(f.Severity.String()), f.Detector),
-		Message: fmt.Sprintf("%s %s (PID %d) — %s", detectors.Emoji(f.Detector), f.Process.Command, f.Process.PID, f.Reason),
+		Message: message,
 		Group:   "shrike:" + key(f),
 	}
 }

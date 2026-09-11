@@ -127,7 +127,7 @@ var doctorCmd = &cobra.Command{
 // findingToJSON shapes a Finding into the wire format documented in
 // docs/superpowers/specs/2026-04-19-shrike-design.md § 7.
 func findingToJSON(ts time.Time, f core.Finding) map[string]any {
-	return map[string]any{
+	rec := map[string]any{
 		"ts":       ts.UTC().Format(time.RFC3339),
 		"detector": f.Detector,
 		"severity": f.Severity.String(),
@@ -145,12 +145,23 @@ func findingToJSON(ts time.Time, f core.Finding) map[string]any {
 			"state":          f.Process.State.String(),
 		},
 	}
+	if f.GPU != nil {
+		rec["gpu"] = f.GPU
+	}
+	if f.System {
+		rec["scope"] = "system"
+		rec["process"] = nil
+	}
+	return rec
 }
 
 // buildEngine assembles the engine with the requested detectors. If only is
 // empty, all registered detectors run.
 func buildEngine(c cfg.Config, only []string) *core.Engine {
 	all := []core.Detector{detectors.NewRunaway(), detectors.NewZombie(), detectors.NewHerd(), detectors.NewMemleak()}
+	if c.GPU.Enabled {
+		all = append(all, detectors.NewGPU(sysinfo.GPUProvider{}))
+	}
 	selected := all
 	if len(only) > 0 {
 		wanted := map[string]bool{}
@@ -174,6 +185,11 @@ func buildEngine(c cfg.Config, only []string) *core.Engine {
 	}
 
 	configs := map[string]core.DetectorConfig{
+		"gpu": {
+			"threshold":    c.GPU.Threshold,
+			"min_duration": time.Duration(c.GPU.MinDuration),
+			"ignore":       c.GPU.Ignore,
+		},
 		"runaway": {
 			"cpu_threshold": c.Runaway.CPUThreshold,
 			"min_age":       time.Duration(c.Runaway.MinAge),

@@ -12,6 +12,8 @@ func Emoji(name string) string {
 		return "👥"
 	case "memleak":
 		return "🧠"
+	case "gpu":
+		return "🎮"
 	default:
 		return "•"
 	}

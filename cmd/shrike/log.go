@@ -33,6 +33,14 @@ var logCmd = &cobra.Command{
 					r.Raw["duration_ms"],
 				)
 			case "finding":
+				if r.Raw["detector"] == "gpu" {
+					target := "system"
+					if r.Raw["scope"] != "system" {
+						target = fmt.Sprintf("PID %v", r.Raw["pid"])
+					}
+					_, _ = fmt.Fprintf(out, "%s    %s gpu %v  %s  %v  %v\n", r.TS.Local().Format("15:04:05"), detectorEmoji("gpu"), r.Raw["severity"], target, r.Raw["command"], r.Raw["reason"])
+					continue
+				}
 				_, _ = fmt.Fprintf(out, "%s    %s %s %s  PID %v  %s  %.1f%% / %vs\n",
 					r.TS.Local().Format("15:04:05"),
 					detectorEmoji(r.Raw["detector"]),

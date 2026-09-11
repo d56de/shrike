@@ -149,6 +149,9 @@ func (m Model) selectedTargets() []core.ProcessInfo {
 			return
 		}
 		f := m.Findings[i]
+		if f.System {
+			return
+		}
 		if f.Detector == "zombie" {
 			redir := f.Process
 			redir.PID = f.Process.PPID
@@ -326,6 +329,9 @@ func (m Model) pauseTargets() []core.ProcessInfo {
 			return
 		}
 		f := m.Findings[i]
+		if f.System {
+			return
+		}
 		if f.Detector == "zombie" {
 			return
 		}
@@ -404,7 +410,7 @@ func (m Model) dropPausedFinding(pid int) Model {
 func (m Model) filterIgnored(detector, command string) Model {
 	out := make([]core.Finding, 0, len(m.Findings))
 	for _, f := range m.Findings {
-		if f.Detector == detector && f.Process.Command == command {
+		if !f.System && f.Detector == detector && f.Process.Command == command {
 			continue
 		}
 		out = append(out, f)
