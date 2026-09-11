@@ -21,7 +21,8 @@ jobs:
       - uses: goreleaser/goreleaser-action@v7
         with:
           distribution: goreleaser
-          version: latest
+          # Pinned for reproducible releases; v2.18.1 built v0.5.0.
+          version: v2.18.1
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
