@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- GPU overload detector for `doctor` and `watch`: repeated high device load,
+  GPU-active process candidates when available, and independent system warnings.
+  Defaults to 90%, three samples and 30 seconds; configurable under `[gpu]`.
+- GPU metadata in JSON/history, GPU-aware log and TUI rows, and diagnostics when
+  GPU telemetry is unavailable. System findings cannot dispatch process actions.
+- Ignore-from-TUI now updates the running engine as well as the persisted file.
+
 ## [v0.4.3] — 2026-06-14
 
 ### Added

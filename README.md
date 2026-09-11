@@ -26,7 +26,7 @@ go install github.com/d56de/shrike/cmd/shrike@latest
 shrike doctor                  # interactive TUI — find, inspect, act
 shrike doctor --threshold 20   # lower the runaway CPU threshold to 20%
 shrike doctor --json           # headless JSON findings for scripting
-shrike doctor --only runaway   # run a specific detector (runaway | zombie | herd | memleak)
+shrike doctor --only runaway   # run a specific detector (runaway | zombie | herd | memleak | gpu)
 shrike log --since 24h         # history of previous runs
 shrike stats                   # GitHub-style activity heatmap (last 13 weeks)
 shrike stats --weeks 26        # half-year view
@@ -61,6 +61,57 @@ Ignores added with `[I]` in the TUI are stored in `ignore.toml` next to `config.
 - **🧟 Zombie** — processes stuck in `Z` or `T` state. Long-lived helpers like Autodesk Fusion's `AdpSDKUtil` are ignored by default; extend the list under `[zombie] ignore = […]` in `config.toml`.
 - **👥 Herd** — aggregated view of helper-process groups (Chrome renderers, Figma helpers, Claude sessions).
 - **🧠 memleak** — processes using a lot of memory (RSS over a threshold), or whose memory grows steadily across scans (a likely leak). Growth detection needs several samples, so it is most effective with auto-refresh on or under `shrike watch`; a one-shot run only flags outright hogs.
+
+## GPU overload
+
+`shrike doctor --only gpu` checks GPU load. A single high observation is a
+**medium** finding awaiting confirmation. Repeated high observations become
+**high** findings, which `watch` notifies about by default:
+
+```sh
+shrike watch --interval 5s
+```
+
+To try the current checkout before installing a release, run
+`go run ./cmd/shrike watch --interval 5s` from the repository directory.
+
+The defaults require at least three observations at **90% or above**, spanning
+at least **30 seconds**. At the normal 60-second watch interval, confirmation
+requires about 120 seconds. A low reading, unavailable telemetry, or a gap over
+two minutes resets confirmation. These are sampled observations; brief changes
+between scans can be missed. A one-shot `doctor --json` run cannot confirm
+sustained load. For repeated interactive scans, configure
+`[ui] auto_refresh_interval = "5s"` or press `[R]` to rescan.
+
+During confirmed overload, up to three GPU-active process candidates are shown
+alongside a **system warning**. Process GPU-time counter changes are driver ticks,
+not GPU percentages or wall-clock nanoseconds. Candidates may be doing legitimate
+rendering or compute work; high load does not prove a hang or zombie state.
+
+System warnings have no process actions. Candidate rows support the usual
+confirmed process actions and `[I]` ignore. Ignoring a candidate does **not** hide
+device overload. Missing process counters leave the system warning intact.
+Unsupported/failed GPU telemetry appears as a low diagnostic instead of a false
+clean result. As with other findings, it produces exit code 1 in JSON mode.
+
+Optional `config.toml` settings (defaults shown):
+
+```toml
+[gpu]
+enabled = true
+threshold = 90.0
+min_duration = "30s"
+ignore = []
+```
+
+Nonpositive/invalid thresholds or durations fall back to the built-in defaults.
+`enabled = false` disables collection and GPU findings. No root privileges or
+extra tools are required: collection uses macOS `ioreg`. Availability depends
+on GPU driver/macOS; GPU load and client counters were verified on Apple Silicon.
+
+JSON and history records include a `gpu` object with device ID, utilization,
+observation duration/count, and candidate counter deltas. System records use
+`scope: "system"`; their JSON `process` is `null` and history has no `pid` field.
 
 ## Navigation
 
