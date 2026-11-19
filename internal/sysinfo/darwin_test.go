@@ -7,6 +7,7 @@ import (
 	"errors"
 	"math"
 	"os"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -116,15 +117,11 @@ func TestSnapshot_GPUFailureKeepsCPU(t *testing.T) {
 }
 
 func TestSnapshot_MeasuresWindow(t *testing.T) {
-	stop := make(chan struct{})
-	defer close(stop)
+	// Busy-spin on purpose: the snapshot must see this goroutine's CPU.
+	var stop atomic.Bool
+	defer stop.Store(true)
 	go func() {
-		for {
-			select {
-			case <-stop:
-				return
-			default:
-			}
+		for !stop.Load() {
 		}
 	}()
 	procs, err := Provider{Window: 500 * time.Millisecond}.Snapshot(context.Background())
