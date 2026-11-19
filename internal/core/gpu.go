@@ -24,8 +24,8 @@ type GPUDevice struct {
 	Clients     []GPUClient
 }
 
-// GPUClient is a driver client with a cumulative, driver-defined GPU-time counter.
-// Ticks must not be interpreted as wall-clock nanoseconds or GPU percent.
+// GPUClient is a driver client with a cumulative GPU-time counter. Ticks are
+// treated as nanoseconds of GPU time (checked against Activity Monitor's % GPU).
 type GPUClient struct {
 	ID       uint64
 	PID      int
@@ -37,11 +37,10 @@ type GPUClient struct {
 type GPUFinding struct {
 	DeviceID        uint64   `json:"device_id"`
 	Device          string   `json:"device"`
-	Utilization     *float64 `json:"utilization_percent,omitempty"`
+	Utilization     *float64 `json:"utilization_percent,omitempty"` // raw ioreg value, display only
+	LoadPercent     float64  `json:"load_percent"`                  // system: sum of processes; candidate: own share
 	ObservedSeconds float64  `json:"observed_seconds"`
 	Samples         int      `json:"samples"`
-	DeltaTicks      uint64   `json:"delta_ticks,omitempty"`
-	IntervalSeconds float64  `json:"interval_seconds,omitempty"`
 }
 
 // ContextDetector is optionally implemented by detectors that perform bounded I/O.

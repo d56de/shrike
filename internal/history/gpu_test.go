@@ -15,7 +15,7 @@ func TestGPUHistoryPreservesSystemMetadata(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = w.AppendRun(RunMeta{}, []core.Finding{{Detector: "gpu", System: true, GPU: &core.GPUFinding{DeviceID: 42, DeltaTicks: 200}}})
+	err = w.AppendRun(RunMeta{}, []core.Finding{{Detector: "gpu", System: true, GPU: &core.GPUFinding{DeviceID: 42, LoadPercent: 95}}})
 	if err != nil {
 		t.Fatal(err)
 	}

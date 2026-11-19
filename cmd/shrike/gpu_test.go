@@ -51,7 +51,7 @@ func TestGPULogShowsReasonWithoutMissingProcessFields(t *testing.T) {
 
 func TestGPUJSONPreservesScopeAndRawCounter(t *testing.T) {
 	u := 97.0
-	f := core.Finding{Detector: "gpu", System: true, GPU: &core.GPUFinding{DeviceID: 42, Utilization: &u, DeltaTicks: 200}}
+	f := core.Finding{Detector: "gpu", System: true, GPU: &core.GPUFinding{DeviceID: 42, Utilization: &u, LoadPercent: 95}}
 	b, err := json.Marshal(findingToJSON(time.Now(), f))
 	if err != nil {
 		t.Fatal(err)
@@ -64,7 +64,7 @@ func TestGPUJSONPreservesScopeAndRawCounter(t *testing.T) {
 		t.Fatalf("fake process: %s", b)
 	}
 	meta, ok := got["gpu"].(map[string]any)
-	if !ok || meta["device_id"] != float64(42) || meta["delta_ticks"] != float64(200) {
+	if !ok || meta["device_id"] != float64(42) || meta["load_percent"] != float64(95) {
 		t.Fatalf("lost GPU metadata: %s", b)
 	}
 }

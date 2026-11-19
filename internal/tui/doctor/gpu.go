@@ -6,20 +6,25 @@ import (
 	"github.com/d56de/shrike/internal/core"
 )
 
-// gpuRow labels device utilization separately from a process's raw GPU-time
-// delta. System warnings deliberately have no fabricated PID/CPU/RSS/age fields.
+// gpuRow leads with measured process GPU load; the raw ioreg utilization is only
+// a suffix because it reads 47–80 % on an idle M1. System warnings deliberately
+// have no fabricated PID/CPU/RSS/age fields.
 func gpuRow(f core.Finding, width int) string {
 	name := truncate(f.Process.Command, width)
 	if f.System {
-		if f.GPU == nil || f.GPU.Utilization == nil {
+		if f.GPU == nil {
 			return fmt.Sprintf("%-*s  GPU unavailable", width, name)
 		}
-		return fmt.Sprintf("%-*s  %.1f%% GPU · system", width, name, *f.GPU.Utilization)
+		row := fmt.Sprintf("%-*s  %.1f%% GPU · system", width, name, f.GPU.LoadPercent)
+		if f.GPU.Utilization != nil {
+			row += fmt.Sprintf(" (ioreg %.0f%%)", *f.GPU.Utilization)
+		}
+		return row
 	}
 	if f.GPU == nil {
 		return fmt.Sprintf("%-*s  PID %d · GPU candidate", width, name, f.Process.PID)
 	}
-	return fmt.Sprintf("%-*s  PID %d · GPU time +%d ticks / %.1fs", width, name, f.Process.PID, f.GPU.DeltaTicks, f.GPU.IntervalSeconds)
+	return fmt.Sprintf("%-*s  PID %d · %.1f%% GPU", width, name, f.Process.PID, f.GPU.LoadPercent)
 }
 
 func findSystemIndex(findings []core.Finding, previous core.Finding) int {

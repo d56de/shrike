@@ -30,7 +30,7 @@ func TestSystemGPUFindingCannotDispatchProcessActions(t *testing.T) {
 
 func TestGPURowFitsNarrowTerminal(t *testing.T) {
 	u := 99.0
-	m := NewModel([]core.Finding{{Detector: "gpu", Process: core.ProcessInfo{PID: 123, Command: "A very long renderer process name"}, GPU: &core.GPUFinding{Utilization: &u, DeltaTicks: 999999999999, IntervalSeconds: 5}, Reason: "GPU-active candidate, not proof of a hung process"}}, nil)
+	m := NewModel([]core.Finding{{Detector: "gpu", Process: core.ProcessInfo{PID: 123, Command: "A very long renderer process name"}, GPU: &core.GPUFinding{Utilization: &u, LoadPercent: 99.9}, Reason: "GPU-active candidate, not proof of a hung process"}}, nil)
 	m.Width = 70
 	m.Height = 35
 	for _, line := range strings.Split(m.View(), "\n") {
@@ -97,11 +97,22 @@ func TestGPUMixedSelectionTargetsOnlyRealProcesses(t *testing.T) {
 
 func TestGPURowShowsGPUAndReasonWithoutFakeCPUOrPID(t *testing.T) {
 	u := 97.0
-	m := NewModel([]core.Finding{{Detector: "gpu", System: true, Process: core.ProcessInfo{Command: "AGX"}, GPU: &core.GPUFinding{Utilization: &u}, Reason: "cause not established"}}, nil)
+	m := NewModel([]core.Finding{{Detector: "gpu", System: true, Process: core.ProcessInfo{Command: "AGX"}, GPU: &core.GPUFinding{Utilization: &u, LoadPercent: 97}, Reason: "cause not established"}}, nil)
 	m.Width = 120
 	m.Height = 35
 	view := m.View()
 	if !strings.Contains(view, "97.0% GPU") || !strings.Contains(view, "cause not established") || strings.Contains(view, "PID 0") || strings.Contains(view, "0.0% CPU") {
 		t.Fatalf("GPU data missing or misleading:\n%s", view)
+	}
+}
+
+func TestGPUSystemRowShowsLoadNotRawUtilization(t *testing.T) {
+	u := 80.0
+	m := NewModel([]core.Finding{{Detector: "gpu", System: true, Process: core.ProcessInfo{Command: "AGX"}, GPU: &core.GPUFinding{Utilization: &u, LoadPercent: 12}, Severity: core.SeverityMedium}}, nil)
+	m.Width = 120
+	m.Height = 35
+	view := m.View()
+	if !strings.Contains(view, "12.0% GPU · system") || !strings.Contains(view, "(ioreg 80%)") {
+		t.Fatalf("system row must lead with process load, raw ioreg value only as suffix:\n%s", view)
 	}
 }
