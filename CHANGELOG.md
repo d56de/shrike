@@ -7,11 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.6.0] — 2026-11-19
+
 ### Changed
 
 - CPU percent is now measured over a 1-second window inside each scan instead of
   the process-lifetime average gopsutil returns on a fresh read. Long-running
-  processes no longer look calmer than they are. Each scan takes about 1 s longer.
+  processes no longer look calmer than they are. Each scan takes about 2 s longer
+  (the window plus a second pass over all processes).
 - GPU overload is decided on the sum of per-process GPU time over the same window.
   ioreg `Device Utilization %` (constant 47–80 % on an idle M1) is display-only.
   GPU candidates show a percent instead of raw ticks, and a one-shot `doctor` run
@@ -19,10 +22,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - JSON/history: GPU `delta_ticks` and `interval_seconds` are replaced by
   `load_percent`.
 
+### Fixed
+
+- Killed rows in the doctor TUI no longer show raw `[38;2;…m` escape text.
+
 ### Known limits
 
-- Processes of other users (e.g. `WindowServer`, root daemons) cannot be read
-  without root and report 0 % CPU and GPU, as before.
+- CPU time of other users' processes (e.g. `WindowServer`, root daemons) cannot
+  be read without root and reports 0 %, as before. Their GPU time is counted.
 
 ## [v0.5.0] — 2026-09-11
 
