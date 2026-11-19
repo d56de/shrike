@@ -32,9 +32,10 @@ const DefaultLoadWindow = time.Second
 // Provider implements core.Snapshotter for macOS. CPU and GPU percentages are
 // measured over Window between two counter readings, not over process lifetime.
 type Provider struct {
-	GPU    core.GPUSnapshotter                        // nil = no GPU load
-	Window time.Duration                              // 0 = DefaultLoadWindow
-	Sleep  func(context.Context, time.Duration) error // nil = context-aware timer
+	GPU    core.GPUSnapshotter                               // nil = no GPU load
+	Window time.Duration                                     // 0 = DefaultLoadWindow
+	Sleep  func(context.Context, time.Duration) error        // nil = context-aware timer
+	list   func(context.Context) ([]*process.Process, error) // nil = gopsutil; test seam
 }
 
 // New returns a Provider with GPU sampling and the default window.
@@ -42,7 +43,11 @@ func New() Provider { return Provider{GPU: GPUProvider{}, Window: DefaultLoadWin
 
 // Snapshot returns a ProcessInfo for every visible process.
 func (p Provider) Snapshot(ctx context.Context) ([]core.ProcessInfo, error) {
-	procs, err := process.ProcessesWithContext(ctx)
+	list := p.list
+	if list == nil {
+		list = process.ProcessesWithContext
+	}
+	procs, err := list(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("list processes: %w", err)
 	}
@@ -57,6 +62,12 @@ func (p Provider) Snapshot(ctx context.Context) ([]core.ProcessInfo, error) {
 	a, gpuA := p.read(ctx, procs)
 	if err := sleep(ctx, window); err != nil {
 		return nil, fmt.Errorf("sample load window: %w", err)
+	}
+	// Re-list: gopsutil caches CreateTime per object, so reusing the first list
+	// would make the PID-reuse check in computeLoad always pass.
+	procs, err = list(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("list processes: %w", err)
 	}
 	b, gpuB := p.read(ctx, procs)
 	if !gpuA || !gpuB {

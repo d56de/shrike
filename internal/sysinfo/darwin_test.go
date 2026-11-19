@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/d56de/shrike/internal/core"
+	"github.com/shirou/gopsutil/v4/process"
 )
 
 // TestSnapshot_NoNaNPercentages guards against gopsutil returning NaN
@@ -139,4 +140,22 @@ func TestSnapshot_MeasuresWindow(t *testing.T) {
 		}
 	}
 	t.Fatal("own PID missing")
+}
+
+// gopsutil caches CreateTime per *process.Process, so the PID-reuse guard only
+// works if reading B uses freshly listed process objects.
+func TestSnapshot_RelistsProcessesForSecondReading(t *testing.T) {
+	var lists int
+	var calls int
+	var got time.Duration
+	p := Provider{Sleep: noSleep(&calls, &got), list: func(ctx context.Context) ([]*process.Process, error) {
+		lists++
+		return process.ProcessesWithContext(ctx)
+	}}
+	if _, err := p.Snapshot(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if lists != 2 {
+		t.Fatalf("process list fetched %d times, want 2 (fresh objects for reading B)", lists)
+	}
 }
