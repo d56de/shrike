@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/d56de/shrike/internal/actions"
 	"github.com/d56de/shrike/internal/core"
 	"github.com/d56de/shrike/internal/stats"
@@ -302,7 +303,9 @@ func renderListBody(t style.Theme, m Model, innerWidth int) string {
 			data = data + "  " + t.Accent.Render("⏸ paused")
 		}
 		if killed {
-			data = t.Killed.Render(data)
+			// Strikethrough styles rune by rune and would split the ANSI of the
+			// coloured bar/Σ/severity into literal "[38;…m" text — strip first.
+			data = t.Killed.Render(ansi.Strip(data))
 		}
 		row := fmt.Sprintf("%s  %s %s", cursor, box, data)
 		row = lipgloss.NewStyle().MaxWidth(innerWidth).Render(row)
