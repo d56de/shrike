@@ -64,7 +64,12 @@ Ignores added with `[I]` in the TUI are stored in `ignore.toml` next to `config.
 
 ## GPU overload
 
-`shrike doctor --only gpu` checks GPU load. A single high observation is a
+`shrike doctor --only gpu` checks GPU load. Load is the **sum of every process's
+GPU time over each scan's 1-second sampling window**. The ioreg
+`Device Utilization %` is shown only as a raw suffix (`(ioreg 80%)`) and never
+decides anything: on an idle M1 it reads a constant 47–80 %.
+
+A single high observation is a
 **medium** finding awaiting confirmation. Repeated high observations become
 **high** findings, which `watch` notifies about by default:
 
@@ -84,13 +89,13 @@ sustained load. For repeated interactive scans, configure
 `[ui] auto_refresh_interval = "5s"` or press `[R]` to rescan.
 
 During confirmed overload, up to three GPU-active process candidates are shown
-alongside a **system warning**. Process GPU-time counter changes are driver ticks,
-not GPU percentages or wall-clock nanoseconds. Candidates may be doing legitimate
-rendering or compute work; high load does not prove a hang or zombie state.
+alongside a **system warning**, each with its own GPU percent. Candidates may be
+doing legitimate rendering or compute work; high load does not prove a hang or
+zombie state.
 
 System warnings have no process actions. Candidate rows support the usual
 confirmed process actions and `[I]` ignore. Ignoring a candidate does **not** hide
-device overload. Missing process counters leave the system warning intact.
+device overload.
 Unsupported/failed GPU telemetry appears as a low diagnostic instead of a false
 clean result. As with other findings, it produces exit code 1 in JSON mode.
 
