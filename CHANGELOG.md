@@ -7,7 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [v0.6.0] — 2026-11-19
+## [v0.6.1] — 2026-11-19
+
+`v0.6.0` was tagged but never released: GitHub had retired the `macos-14`
+runner. v0.6.1 is the first release with the changes below.
+
+### CI
+
+- Workflows run on `macos-15`.
 
 ### Changed
 
