@@ -11,17 +11,29 @@ import (
 type procReading struct {
 	Started    int64
 	CPUSeconds float64
+	At         time.Time // when this process was read; zero = use the window
 }
 
 // loadReading is one sample point: process CPU counters plus GPU client ticks.
 type loadReading struct {
 	Procs map[int]procReading
 	GPU   []core.GPUClient
+	GPUAt time.Time // when GPU clients were read; zero = use the window
 }
 
 // procLoad is a process's share of CPU and GPU over one window.
 type procLoad struct {
 	CPUPercent, GPUPercent float64
+}
+
+// elapsed is the measured gap between two reading times, falling back to window
+// when either time is missing or the gap is not positive. Reading ~700 processes
+// takes about as long as the window itself, so the nominal window alone is wrong.
+func elapsed(a, b time.Time, window time.Duration) time.Duration {
+	if a.IsZero() || b.IsZero() || !b.After(a) {
+		return window
+	}
+	return b.Sub(a)
 }
 
 // computeLoad turns two readings into per-process load over window. Only
@@ -40,10 +52,11 @@ func computeLoad(a, b loadReading, window time.Duration) map[int]procLoad {
 		}
 		var l procLoad
 		if d := pb.CPUSeconds - pa.CPUSeconds; d > 0 {
-			l.CPUPercent = d / window.Seconds() * 100
+			l.CPUPercent = d / elapsed(pa.At, pb.At, window).Seconds() * 100
 		}
 		out[pid] = l
 	}
+	gpuWindow := float64(elapsed(a.GPUAt, b.GPUAt, window).Nanoseconds())
 	before := make(map[uint64]core.GPUClient, len(a.GPU))
 	for _, c := range a.GPU {
 		before[c.ID] = c
@@ -54,7 +67,7 @@ func computeLoad(a, b loadReading, window time.Duration) map[int]procLoad {
 		if !ok || !seen || prev.PID != c.PID || prev.Channels != c.Channels || c.Ticks < prev.Ticks {
 			continue
 		}
-		l.GPUPercent += float64(c.Ticks-prev.Ticks) / float64(window.Nanoseconds()) * 100
+		l.GPUPercent += float64(c.Ticks-prev.Ticks) / gpuWindow * 100
 		out[c.PID] = l
 	}
 	return out

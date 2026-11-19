@@ -80,3 +80,18 @@ func TestComputeLoad_NegativeCPUDelta(t *testing.T) {
 	b := loadReading{Procs: map[int]procReading{1: {Started: 1, CPUSeconds: 9}}}
 	near(t, "CPUPercent", computeLoad(a, b, window)[1].CPUPercent, 0)
 }
+
+func TestComputeLoad_UsesMeasuredElapsedPerProcess(t *testing.T) {
+	t0 := time.Unix(100, 0)
+	a := loadReading{Procs: map[int]procReading{1: {Started: 1, CPUSeconds: 10, At: t0}}}
+	b := loadReading{Procs: map[int]procReading{1: {Started: 1, CPUSeconds: 11, At: t0.Add(2 * time.Second)}}}
+	near(t, "CPUPercent", computeLoad(a, b, window)[1].CPUPercent, 50)
+}
+
+func TestComputeLoad_UsesMeasuredGPUElapsed(t *testing.T) {
+	t0 := time.Unix(100, 0)
+	procs := map[int]procReading{1: {Started: 1}}
+	a := loadReading{Procs: procs, GPUAt: t0, GPU: []core.GPUClient{{ID: 1, PID: 1, Ticks: 0}}}
+	b := loadReading{Procs: procs, GPUAt: t0.Add(2 * time.Second), GPU: []core.GPUClient{{ID: 1, PID: 1, Ticks: 1_000_000_000}}}
+	near(t, "GPUPercent", computeLoad(a, b, window)[1].GPUPercent, 50)
+}

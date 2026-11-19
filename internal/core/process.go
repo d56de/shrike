@@ -43,7 +43,8 @@ type ProcessInfo struct {
 	Command     string // basename
 	FullPath    string
 	Args        []string
-	CPUPercent  float64 // 0.0 – (100 * numCores)
+	CPUPercent  float64 // 0.0 – (100 * numCores), over the snapshot's sampling window
+	GPUPercent  float64 // share of GPU time over the sampling window, 0–100 per device
 	MemPercent  float64
 	RSS         uint64 // bytes
 	VSZ         uint64 // bytes
