@@ -149,6 +149,8 @@ func renderListBody(t style.Theme, m Model, innerWidth int) string {
 		b.WriteString(pad("") + "\n")
 	}
 
+	b.WriteString(renderLoadSection(t, m))
+
 	// Status header: "⏺ N suspicious processes found (X.XXs)"
 	durLabel := "—"
 	if m.RunDuration > 0 {

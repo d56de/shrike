@@ -90,3 +90,17 @@ func TestEngine_RunSortsBySeverityThenScore(t *testing.T) {
 		t.Errorf("second finding should be Medium/50, got Score=%v", findings[1].Score)
 	}
 }
+
+func TestEngineRunRecordsSystemLoad(t *testing.T) {
+	e := &Engine{Snapshotter: fakeSnapshotter{procs: []ProcessInfo{
+		{PID: 1, CPUPercent: 150, GPUPercent: 10},
+		{PID: 2, CPUPercent: 50, GPUPercent: 5.5},
+	}}}
+	if _, err := e.Run(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	want := Load{CPUPercent: 200, GPUPercent: 15.5, Procs: 2}
+	if e.LastLoad != want {
+		t.Fatalf("LastLoad = %+v, want %+v", e.LastLoad, want)
+	}
+}

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"runtime"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -102,6 +103,9 @@ var doctorCmd = &cobra.Command{
 		model.RunDuration = elapsed
 		model.ProcsScanned = 0 // v0.2: plumb from engine snapshot
 		model.Engine = engine
+		model.Load = engine.LastLoad
+		model.Cores = runtime.NumCPU()
+		model.LiveLoad = sysinfo.NewLoadMeter().Sample
 		model.HistoryEnabled = c.History.Enabled
 		model.HistoryConfig = history.WriterConfig{
 			Enabled:      c.History.Enabled,

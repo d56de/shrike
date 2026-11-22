@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `doctor` shows a load section with system CPU and GPU above the findings.
+  It starts with the last scan's totals and then switches to live sparklines
+  sampled once a second (host CPU counters plus one `ioreg` call, no process
+  walk). GPU reads 0 % when GPU telemetry is unavailable.
+
 ## [v0.6.1] — 2026-11-19
 
 `v0.6.0` was tagged but never released: GitHub had retired the `macos-14`

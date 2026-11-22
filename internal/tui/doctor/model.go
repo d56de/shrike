@@ -2,6 +2,7 @@
 package doctor
 
 import (
+	"context"
 	"fmt"
 	"sort"
 	"time"
@@ -78,7 +79,14 @@ type Model struct {
 	// Status line context (set by the caller before launching the program).
 	Version      string
 	ProcsScanned int
-	RunDuration  time.Duration
+	Load         core.Load // zero Procs = no snapshot yet, section hidden
+	Cores        int       // logical CPUs; CPU load is normalised by this
+
+	// LiveLoad samples system load once per liveInterval for the sparklines.
+	// Nil disables live sampling; CPUHist/GPUHist hold the last liveHistory.
+	LiveLoad         func(context.Context) (core.LoadPoint, bool)
+	CPUHist, GPUHist []float64
+	RunDuration      time.Duration
 
 	// Engine for in-TUI rescan (R key). Optional — rescan is disabled if nil.
 	Engine         *core.Engine
@@ -215,6 +223,9 @@ func (m Model) visibleCount() int {
 	chrome := 20 // logo branch (18) + 2 lines reserved for scroll indicators
 	if inner < 46 {
 		chrome = 13 // logo hidden on narrow terminals
+	}
+	if m.hasLoad() {
+		chrome += loadSectionLines
 	}
 	// The footer wraps to multiple lines on narrow terminals — each extra
 	// line steals from the entry budget. Use the long (hasHerd=true) form

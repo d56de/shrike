@@ -22,6 +22,22 @@ type Engine struct {
 	Detectors   []Detector
 	Configs     map[string]DetectorConfig // keyed by Detector.Name()
 	configMu    sync.RWMutex
+
+	// LastLoad is the system load of the most recent successful Run. Read it
+	// from the goroutine that called Run; it is not synchronised.
+	LastLoad Load
+}
+
+// Load is system-wide load summed over one snapshot's processes. CPUPercent is
+// in per-core units (800 = eight busy cores).
+type Load struct {
+	CPUPercent, GPUPercent float64
+	Procs                  int
+}
+
+// LoadPoint is one live system-load sample; CPUPercent is 0–100 of all cores.
+type LoadPoint struct {
+	CPUPercent, GPUPercent float64
 }
 
 // Ignore updates an in-session ignore list without racing an active scan.
@@ -47,6 +63,12 @@ func (e *Engine) Run(ctx context.Context) ([]Finding, error) {
 	if err != nil {
 		return nil, err
 	}
+	load := Load{Procs: len(snap)}
+	for _, p := range snap {
+		load.CPUPercent += p.CPUPercent
+		load.GPUPercent += p.GPUPercent
+	}
+	e.LastLoad = load
 
 	var (
 		g   errgroup.Group

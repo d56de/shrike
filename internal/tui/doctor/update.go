@@ -35,6 +35,7 @@ type InfoDoneMsg struct {
 type RescanDoneMsg struct {
 	Findings []core.Finding
 	Duration time.Duration
+	Load     core.Load
 	Err      error
 }
 
@@ -64,10 +65,11 @@ func autoRefreshTick(interval time.Duration) tea.Cmd {
 
 // Init implements tea.Model. Kicks off the auto-refresh ticker if enabled.
 func (m Model) Init() tea.Cmd {
+	var auto tea.Cmd
 	if m.AutoRefreshOn && m.AutoRefreshInterval > 0 {
-		return autoRefreshTick(m.AutoRefreshInterval)
+		auto = autoRefreshTick(m.AutoRefreshInterval)
 	}
-	return nil
+	return tea.Batch(auto, liveTick(m.LiveLoad))
 }
 
 // Update implements tea.Model: dispatches based on mode.
@@ -78,6 +80,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.adjustOffset(), nil
 	case tea.KeyMsg:
 		return m.handleKey(msg)
+	case liveLoadMsg:
+		if msg.ok {
+			m.CPUHist = pushBounded(m.CPUHist, msg.point.CPUPercent)
+			m.GPUHist = pushBounded(m.GPUHist, msg.point.GPUPercent)
+		}
+		return m, liveTick(m.LiveLoad)
 	case ActionMsg:
 		m.LastResults = msg.Results
 		m.Mode = ModeResults
@@ -152,6 +160,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			m.Findings = msg.Findings
 			m.RunDuration = msg.Duration
+			m.Load = msg.Load
 			m.Selected = map[int]bool{}
 			m.Expanded = map[int]bool{}
 			m.KilledPIDs = nil
@@ -566,6 +575,6 @@ func runRescan(engine *core.Engine, historyEnabled bool, hcfg history.WriterConf
 				_ = w.Close()
 			}
 		}
-		return RescanDoneMsg{Findings: findings, Duration: dur, Err: err}
+		return RescanDoneMsg{Findings: findings, Duration: dur, Load: engine.LastLoad, Err: err}
 	}
 }
