@@ -29,7 +29,9 @@ func hostCPU(ctx context.Context) (cpuTimes, error) {
 	if err != nil || len(ts) == 0 {
 		return cpuTimes{}, err
 	}
-	return cpuTimes{busy: ts[0].Total() - ts[0].Idle, total: ts[0].Total()}, nil
+	t := ts[0]
+	busy := t.User + t.System + t.Nice + t.Irq + t.Softirq + t.Steal
+	return cpuTimes{busy: busy, total: busy + t.Idle + t.Iowait}, nil
 }
 
 // Sample returns load since the previous call; ok is false until a baseline
