@@ -57,8 +57,8 @@ func TestStats_RenderEmptyHistory(t *testing.T) {
 	if !strings.Contains(out, "no activity") {
 		t.Errorf("expected 'no activity' in empty-history trends view, got:\n%s", out)
 	}
-	if !strings.Contains(out, "[esc] back") {
-		t.Errorf("expected '[esc] back' footer in trends view")
+	if !strings.Contains(out, "Esc back") {
+		t.Errorf("expected 'Esc back' footer in trends view")
 	}
 }
 

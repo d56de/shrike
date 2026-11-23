@@ -205,7 +205,8 @@ func (m Model) selectedTargets() []core.ProcessInfo {
 // WindowSizeMsg yet), so the initial render shows everything before Bubble
 // Tea has measured the window.
 //
-// Each finding renders as ~3 lines (row + path + connector); the chrome
+// Each finding renders as one line, plus one reserved for the active row's
+// zombie/GPU reason line; the chrome
 // (border, top padding, optional logo, status header, footer divider, hints)
 // is subtracted before dividing. Minimum return value is 1 so a degenerate
 // terminal still shows the cursor row.
@@ -233,11 +234,11 @@ func (m Model) visibleCount() int {
 	if extra := len(wrapKeyhint(keyhintSegments(true, true), inner)) - 1; extra > 0 {
 		chrome += extra
 	}
-	avail := m.Height - chrome
-	if avail < 3 {
+	avail := m.Height - chrome - 1
+	if avail < 1 {
 		return 1
 	}
-	return avail / 3
+	return avail
 }
 
 // confirmVisibleCount returns how many target rows fit inside the confirm

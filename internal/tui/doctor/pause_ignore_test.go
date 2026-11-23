@@ -205,7 +205,7 @@ func TestView_RendersPausedTagAndHints(t *testing.T) {
 	if !strings.Contains(out, "paused") {
 		t.Error("expected '⏸ paused' marker in list output")
 	}
-	if !strings.Contains(out, "[p]ause") || !strings.Contains(out, "[I]gnore") {
+	if !strings.Contains(out, "p pause") || !strings.Contains(out, "I ignore") {
 		t.Error("expected [p]ause and [I]gnore in footer hints")
 	}
 }

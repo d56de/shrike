@@ -14,6 +14,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   sampled once a second (host CPU counters plus one `ioreg` call, no process
   walk). GPU reads 0 % when GPU telemetry is unavailable.
 
+### Changed
+
+- `doctor` list is one line per finding: `➤` marks the cursor row, which is
+  also highlighted, `●`/`○` show selection, and the vertical gutter lines are
+  gone. The path moved to the info modal (`i`); zombie and GPU reasons show as
+  a `╰` line under the active row.
+- CPU, memory and age columns are right-aligned; memory above 1000 MB is
+  shown in GB.
+- Key hints drop the brackets: `↑/↓ · Space select · k kill · q quit`.
+
 ## [v0.6.1] — 2026-11-19
 
 `v0.6.0` was tagged but never released: GitHub had retired the `macos-14`

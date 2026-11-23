@@ -40,7 +40,7 @@ func TestConfirmFooterRevertedToFlatKeyHint(t *testing.T) {
 		Theme:         style.DefaultTheme(),
 	}
 	out := renderConfirmBody(m.Theme, m, 80)
-	if !strings.Contains(out, "[y] confirm · [n] cancel") {
+	if !strings.Contains(out, "y confirm · n cancel") {
 		t.Errorf("expected flat keyhint, got:\n%s", out)
 	}
 	if strings.Contains(out, "⏺ yes") || strings.Contains(out, "⏺ no") {
@@ -69,7 +69,7 @@ func TestConfirmShowsScrollIndicatorsWhenOverflowing(t *testing.T) {
 	if !strings.Contains(out, "more below") {
 		t.Errorf("expected '↓ N more below' indicator, got:\n%s", out)
 	}
-	if !strings.Contains(out, "[↑/↓] scroll") {
+	if !strings.Contains(out, "↑/↓ scroll") {
 		t.Errorf("expected scroll keyhint, got:\n%s", out)
 	}
 }
@@ -93,7 +93,7 @@ func TestConfirmHidesIndicatorsWhenAllFit(t *testing.T) {
 	if strings.Contains(out, "more above") || strings.Contains(out, "more below") {
 		t.Errorf("indicators should be hidden when all targets fit, got:\n%s", out)
 	}
-	if strings.Contains(out, "[↑/↓] scroll") {
+	if strings.Contains(out, "↑/↓ scroll") {
 		t.Errorf("scroll hint should be hidden when all targets fit, got:\n%s", out)
 	}
 }

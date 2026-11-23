@@ -25,18 +25,18 @@ func TestVisibleCountReturnsAllWhenHeightUnknown(t *testing.T) {
 
 func TestVisibleCountAccountsForChrome(t *testing.T) {
 	// Wide terminal — at large widths the footer fits on one line so chrome
-	// stays at the base 20. avail = Height - 20, visible = avail/3.
+	// stays at the base 20. visible = Height - 20 - 1 reserved reason line.
 	m := Model{Findings: makeFindings(50), Width: 200, Height: 50}
-	if got := m.visibleCount(); got != 10 {
-		t.Fatalf("Width=200 Height=50 expected 10 visible, got %d", got)
+	if got := m.visibleCount(); got != 29 {
+		t.Fatalf("Width=200 Height=50 expected 29 visible, got %d", got)
 	}
 
 	// Narrow terminal — footer wraps; visibleCount must shrink so the wrap
 	// lines don't push the frame past the bottom of the screen.
 	m = Model{Findings: makeFindings(50), Width: 40, Height: 28}
 	got := m.visibleCount()
-	if got < 1 || got > 4 {
-		t.Fatalf("Width=40 Height=28: expected ≤4 visible (footer wraps), got %d", got)
+	if got < 1 || got >= 28-13-1 {
+		t.Fatalf("Width=40 Height=28: expected fewer than 14 visible (footer wraps), got %d", got)
 	}
 }
 
@@ -75,8 +75,8 @@ func TestVisibleCountTinyTerminal(t *testing.T) {
 func TestAdjustOffsetKeepsCursorInWindow(t *testing.T) {
 	// Wide terminal so the footer fits on one line — visibleCount is purely
 	// a function of Height, making the offset arithmetic predictable.
-	// Width=200, Height=44 → chrome=20, avail=24, visible=8. 30 findings.
-	m := Model{Findings: makeFindings(30), Width: 200, Height: 44}
+	// Width=200, Height=29 → chrome=20, 1 reserved, visible=8. 30 findings.
+	m := Model{Findings: makeFindings(30), Width: 200, Height: 29}
 	visible := m.visibleCount()
 	if visible != 8 {
 		t.Fatalf("test setup: expected visible=8, got %d", visible)

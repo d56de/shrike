@@ -183,12 +183,7 @@ func renderListBody(t style.Theme, m Model, innerWidth int) string {
 	b.WriteString(pad(header) + "\n")
 
 	// Connector line from ⏺ down to first cursor.
-	b.WriteString(pad(t.Gutter.Render("│")) + "\n")
-
-	pathMax := innerWidth - 8
-	if pathMax < 20 {
-		pathMax = 20
-	}
+	b.WriteString(pad("") + "\n")
 
 	if len(m.Findings) == 0 {
 		b.WriteString(pad(t.CheckboxOn.Render("✓")+" "+t.Subtle.Render("No suspicious processes — your Mac looks great")) + "\n")
@@ -210,7 +205,6 @@ func renderListBody(t style.Theme, m Model, innerWidth int) string {
 
 	if start > 0 {
 		b.WriteString(pad(t.Subtle.Render(fmt.Sprintf("↑ %d more above", start))) + "\n")
-		b.WriteString(pad(t.Gutter.Render("│")) + "\n")
 	}
 
 	for i := start; i < end; i++ {
@@ -218,25 +212,21 @@ func renderListBody(t style.Theme, m Model, innerWidth int) string {
 		active := m.Cursor == i
 		killed := isFindingKilled(f, m.KilledPIDs)
 
-		// Cursor glyph replaces the tree-gutter at the entry row.
-		var cursor string
-		switch {
-		case active:
-			cursor = t.Cursor.Render("◆")
-		default:
-			cursor = t.CursorInactive.Render("◇")
+		// Cursor arrow only on the active row; blank keeps columns aligned.
+		cursor := " "
+		if active {
+			cursor = t.Cursor.Render("➤")
 		}
 
-		// Checkbox: ✓ for selected, ✕ when killed (overrides selection),
-		// faded ✓ otherwise.
+		// Selection: ● selected, ✕ when killed (overrides selection), ○ otherwise.
 		var box string
 		switch {
 		case killed:
 			box = t.Killed.Render("✕")
 		case m.Selected[i]:
-			box = t.CheckboxOn.Render("✓")
+			box = t.CheckboxOn.Render("●")
 		default:
-			box = t.CheckboxOff.Render("✓")
+			box = t.CheckboxOff.Render("○")
 		}
 
 		sevName := f.Severity.String()
@@ -267,7 +257,7 @@ func renderListBody(t style.Theme, m Model, innerWidth int) string {
 		cpu := f.Process.CPUPercent
 		rss := f.Process.RSS
 		cmdLabel := truncate(f.Process.Command, cmdW)
-		cpuPrefix := " "
+		cpuPrefix := ""
 		if f.Group != nil {
 			cpu = f.Group.TotalCPU
 			rss = f.Group.TotalRSS
@@ -280,7 +270,10 @@ func renderListBody(t style.Theme, m Model, innerWidth int) string {
 		}
 
 		bar := renderCPUBarColored(t, cpu, 6, sevName)
-		rssLabel := fmt.Sprintf("%d MB", rss/1024/1024)
+		// Right-align "Σ"+number in a 5-wide column so herd and single rows
+		// line up; pad from the plain width, the Σ carries ANSI.
+		cpuNum := fmt.Sprintf("%.1f", cpu)
+		cpuField := strings.Repeat(" ", max(5-len(cpuNum)-lipgloss.Width(cpuPrefix), 0)) + cpuPrefix + cpuNum
 
 		// Killed entries: strike through the data half (cmd/PID/CPU/RSS/age)
 		// so the row stays in place after a kill — the user can still see
@@ -292,8 +285,8 @@ func renderListBody(t style.Theme, m Model, innerWidth int) string {
 		if !killed {
 			ageStr = t.AgeHeat[ageHeatLevel(f.Process.ElapsedTime)].Render(ageStr)
 		}
-		data := fmt.Sprintf("%-*s  PID %-6d %s %s%.1f%% CPU · %-7s · %s",
-			cmdW, cmdLabel, f.Process.PID, bar, cpuPrefix, cpu, rssLabel, ageStr)
+		data := fmt.Sprintf("%-*s  PID %-6d %s %s%% CPU · %6s · %s",
+			cmdW, cmdLabel, f.Process.PID, bar, cpuField, formatRSS(rss), ageStr)
 		if f.Detector == "gpu" {
 			data = gpuRow(f, cmdW)
 		}
@@ -311,21 +304,18 @@ func renderListBody(t style.Theme, m Model, innerWidth int) string {
 		}
 		row := fmt.Sprintf("%s  %s %s", cursor, box, data)
 		row = lipgloss.NewStyle().MaxWidth(innerWidth).Render(row)
-		b.WriteString(pad(row) + "\n")
-
-		// Path line always shown (truncated for long paths).
-		secondary := f.Process.FullPath
-		if f.Detector == "gpu" {
-			secondary = f.Reason
+		if active {
+			row = highlightRow(row, innerWidth-4)
 		}
-		b.WriteString(pad(t.Gutter.Render("│")+"   "+t.Subtle.Render(truncatePath(secondary, pathMax))) + "\n")
+		b.WriteString(pad(row) + "\n")
 
 		// Reason line: only when it adds info beyond the top row.
 		// - Runaway: "49% CPU for 7d" — already in top row. Skip.
 		// - Herd:    "11 X processes using …" — already in top row. Skip.
 		// - Zombie:  "kill parent PID N" — actionable, keep.
-		if active && f.Detector == "zombie" && f.Reason != "" {
-			b.WriteString(pad(t.Gutter.Render("│")+"   "+t.Subtle.Render(f.Reason)) + "\n")
+		// - GPU:     caveats like "may be legitimate work" — keep.
+		if active && (f.Detector == "zombie" || f.Detector == "gpu") && f.Reason != "" {
+			b.WriteString(pad(detailIndent+t.Subtle.Render("╰ "+f.Reason)) + "\n")
 		}
 
 		// Herd expansion — list all members when user pressed [→].
@@ -333,29 +323,19 @@ func renderListBody(t style.Theme, m Model, innerWidth int) string {
 			members := make([]core.ProcessInfo, 0, len(f.Group.Children)+1)
 			members = append(members, f.Group.Parent)
 			members = append(members, f.Group.Children...)
-			for j, child := range members {
-				branch := "├─"
-				if j == len(members)-1 {
-					branch = "└─"
-				}
-				line := fmt.Sprintf("%s PID %-6d  %.1f%% CPU · %d MB · %s",
-					t.Gutter.Render(branch),
+			for _, child := range members {
+				line := fmt.Sprintf("PID %-6d  %.1f%% CPU · %d MB · %s",
 					child.PID,
 					child.CPUPercent,
 					child.RSS/1024/1024,
 					formatElapsedShort(int64(child.ElapsedTime.Seconds())))
-				b.WriteString(pad(t.Gutter.Render("│")+"   "+t.Subtle.Render(line)) + "\n")
+				b.WriteString(pad(detailIndent+"  "+t.Subtle.Render(line)) + "\n")
 			}
 		}
 
-		// Connector between entries (except after the last visible entry).
-		if i < end-1 {
-			b.WriteString(pad(t.Gutter.Render("│")) + "\n")
-		}
 	}
 
 	if end < len(m.Findings) {
-		b.WriteString(pad(t.Gutter.Render("│")) + "\n")
 		b.WriteString(pad(t.Subtle.Render(fmt.Sprintf("↓ %d more below", len(m.Findings)-end))) + "\n")
 	}
 
@@ -381,17 +361,17 @@ func renderListBody(t style.Theme, m Model, innerWidth int) string {
 // Building them as a slice lets wrapKeyhint flow them across multiple lines
 // when the terminal is too narrow for a single-line footer.
 func keyhintSegments(hasHerd, hasAutoRefresh bool) []string {
-	segs := []string{"[↑/↓] navigate", "[PgUp/PgDn] page", "[space] select"}
+	segs := []string{"↑/↓", "PgUp/PgDn page", "Space select"}
 	if hasHerd {
-		segs = append(segs, "[→] expand")
+		segs = append(segs, "→ expand")
 	}
 	segs = append(segs,
-		"[i]nfo", "[s]ample", "[k]ill", "[r]enice", "[p]ause", "[I]gnore",
-		"[t] trends", "[R] rescan")
+		"i info", "s sample", "k kill", "r renice", "p pause", "I ignore",
+		"t trends", "R rescan")
 	if hasAutoRefresh {
-		segs = append(segs, "[a]uto-refresh")
+		segs = append(segs, "a auto-refresh")
 	}
-	return append(segs, "[?] help", "[q]uit")
+	return append(segs, "? help", "q quit")
 }
 
 // shortDuration formats a duration as the compact form used in the status
@@ -511,19 +491,27 @@ func renderCPUBarColored(t style.Theme, pct float64, width int, severity string)
 	return s.String()
 }
 
+// rowHighlight is the background behind the cursor row.
+var rowHighlight = lipgloss.Color("236")
+
+// highlightRow paints rowHighlight under an already-styled row, padded to
+// width. lipgloss styles don't nest, so the background is re-opened after
+// every SGR reset; without colour support the row is returned unchanged.
+func highlightRow(row string, width int) string {
+	bg, _, _ := strings.Cut(lipgloss.NewStyle().Background(rowHighlight).Render(" "), " ")
+	if bg == "" {
+		return row
+	}
+	row += strings.Repeat(" ", max(width-lipgloss.Width(row), 0))
+	return bg + strings.ReplaceAll(row, "\x1b[0m", "\x1b[0m"+bg) + "\x1b[0m"
+}
+
 // truncate clamps s to maxLen characters, appending an ellipsis.
 func truncate(s string, maxLen int) string {
 	if len(s) <= maxLen {
 		return s
 	}
 	return s[:maxLen-1] + "…"
-}
-
-func truncatePath(p string, maxLen int) string {
-	if len(p) <= maxLen {
-		return p
-	}
-	return "…" + p[len(p)-maxLen+1:]
 }
 
 func formatElapsedShort(sec int64) string {
@@ -533,9 +521,21 @@ func formatElapsedShort(sec int64) string {
 	}
 	hours := mins / 60
 	if hours < 24 {
-		return fmt.Sprintf("%dh %dm", hours, mins%60)
+		return fmt.Sprintf("%dh %2dm", hours, mins%60)
 	}
-	return fmt.Sprintf("%dd %dh", hours/24, hours%24)
+	return fmt.Sprintf("%dd %2dh", hours/24, hours%24)
+}
+
+// detailIndent puts detail lines under the command name: the width of
+// cursor, two spaces, selection glyph and a space in the row prefix.
+const detailIndent = "     "
+
+// formatRSS keeps memory at most six columns wide: MB below 1000, GB above.
+func formatRSS(rss uint64) string {
+	if m := rss / 1024 / 1024; m < 1000 {
+		return fmt.Sprintf("%d MB", m)
+	}
+	return fmt.Sprintf("%.1f GB", float64(rss)/(1<<30))
 }
 
 // ageHeatLevel maps a process's elapsed runtime to a 0–3 "heat" level used to
@@ -563,7 +563,7 @@ func renderConfirmBody(t style.Theme, m Model, innerWidth int) string {
 
 	// Header: ⏺ status marker + action question.
 	b.WriteString(pad(t.Accent.Render("⏺")+"  "+a.Confirm()) + "\n")
-	b.WriteString(pad(t.Gutter.Render("│")) + "\n")
+	b.WriteString(pad("") + "\n")
 
 	targets := m.selectedTargets()
 
@@ -603,12 +603,11 @@ func renderConfirmBody(t style.Theme, m Model, innerWidth int) string {
 	}
 
 	// One row per visible target, styled like a main-list entry, with a
-	// gutter connector line between rows so it visually reads as a small
-	// tree. Zombie redirects are rendered un-truncated so the user always
+	// blank line between rows. Zombie redirects are rendered un-truncated so the user always
 	// sees that the action will hit a different PID than the one selected.
 	for i := offset; i < end; i++ {
 		p := targets[i]
-		cursor := t.Cursor.Render("◆")
+		cursor := t.CheckboxOn.Render("●")
 		if strings.HasPrefix(p.Command, "reap ") {
 			warn := t.Severity["high"].Render("⚠")
 			b.WriteString(pad(fmt.Sprintf("%s  %s %s", cursor, warn, p.Command)) + "\n")
@@ -620,7 +619,7 @@ func renderConfirmBody(t style.Theme, m Model, innerWidth int) string {
 			b.WriteString(pad(line) + "\n")
 		}
 		if i < end-1 {
-			b.WriteString(pad(t.Gutter.Render("│")) + "\n")
+			b.WriteString(pad("") + "\n")
 		}
 	}
 
@@ -629,7 +628,7 @@ func renderConfirmBody(t style.Theme, m Model, innerWidth int) string {
 		b.WriteString(pad(t.Subtle.Render(fmt.Sprintf("  ↓ %d more below", hiddenBelow))) + "\n")
 	}
 
-	b.WriteString(pad(t.Gutter.Render("│")) + "\n")
+	b.WriteString(pad("") + "\n")
 
 	if hasZombieRedirect {
 		b.WriteString(pad(t.Severity["high"].Render(
@@ -641,9 +640,9 @@ func renderConfirmBody(t style.Theme, m Model, innerWidth int) string {
 	b.WriteString(pad("") + "\n")
 	b.WriteString(footerDivider(t, innerWidth))
 	b.WriteString(pad("") + "\n")
-	hint := "[y] confirm · [n] cancel"
+	hint := "y confirm · n cancel"
 	if scrollable {
-		hint = "[↑/↓] scroll · " + hint
+		hint = "↑/↓ scroll · " + hint
 	}
 	b.WriteString(pad(t.KeyHint.Render(hint)) + "\n")
 	return b.String()
@@ -660,13 +659,13 @@ func renderIgnoreConfirmBody(t style.Theme, m Model, innerWidth int) string {
 	q := fmt.Sprintf("Ignore all '%s' processes in the %s detector?",
 		f.Process.Command, f.Detector)
 	b.WriteString(pad(t.Accent.Render("⏺")+"  "+q) + "\n")
-	b.WriteString(pad(t.Gutter.Render("│")) + "\n")
+	b.WriteString(pad("") + "\n")
 	b.WriteString(pad(t.Subtle.Render("  Saved to ignore.toml — they won't be flagged again.")) + "\n")
 	b.WriteString(pad(t.Subtle.Render("  Edit or delete that file by hand to undo.")) + "\n")
 	b.WriteString(pad("") + "\n")
 	b.WriteString(footerDivider(t, innerWidth))
 	b.WriteString(pad("") + "\n")
-	b.WriteString(pad(t.KeyHint.Render("[y] confirm · [n] cancel")) + "\n")
+	b.WriteString(pad(t.KeyHint.Render("y confirm · n cancel")) + "\n")
 	return b.String()
 }
 
@@ -730,11 +729,11 @@ func renderRunningBody(t style.Theme, m Model, innerWidth int) string {
 	targets := m.selectedTargets()
 	b.WriteString(pad(spin+"  "+t.Subtle.Render(fmt.Sprintf("running %s on %d process(es)…",
 		actionName, len(targets)))) + "\n")
-	b.WriteString(pad(t.Gutter.Render("│")) + "\n")
+	b.WriteString(pad("") + "\n")
 
 	for _, p := range targets {
 		sevName := severityForPID(m.Findings, p.PID)
-		cursor := t.CursorInactive.Render("◇")
+		cursor := t.CheckboxOn.Render("●")
 		bar := renderCPUBarColored(t, p.CPUPercent, 6, sevName)
 		line := fmt.Sprintf("%s  %-30s  PID %-6d %s %.1f%% CPU",
 			cursor, truncate(p.Command, 30), p.PID, bar, p.CPUPercent)
@@ -762,7 +761,7 @@ func renderResultsBody(t style.Theme, m Model, innerWidth int) string {
 	}
 	summary := fmt.Sprintf("%d succeeded · %d failed", ok, failed)
 	b.WriteString(pad(t.Accent.Render("⏺")+"  "+summary) + "\n")
-	b.WriteString(pad(t.Gutter.Render("│")) + "\n")
+	b.WriteString(pad("") + "\n")
 
 	for _, r := range m.LastResults {
 		mark := t.CheckboxOn.Render("✓")
@@ -775,7 +774,7 @@ func renderResultsBody(t style.Theme, m Model, innerWidth int) string {
 	b.WriteString(pad("") + "\n")
 	b.WriteString(footerDivider(t, innerWidth))
 	b.WriteString(pad("") + "\n")
-	b.WriteString(pad(t.KeyHint.Render("[any key] back")) + "\n")
+	b.WriteString(pad(t.KeyHint.Render("any key back")) + "\n")
 	return b.String()
 }
 
@@ -843,7 +842,7 @@ func renderInfoBody(t style.Theme, m Model, innerWidth int) string {
 	b.WriteString(pad("") + "\n")
 	b.WriteString(footerDivider(t, innerWidth))
 	b.WriteString(pad("") + "\n")
-	b.WriteString(pad(t.KeyHint.Render("[esc] back")) + "\n")
+	b.WriteString(pad(t.KeyHint.Render("Esc back")) + "\n")
 	return b.String()
 }
 
@@ -885,7 +884,7 @@ func renderSampleBody(t style.Theme, m Model, innerWidth int) string {
 	b.WriteString(pad("") + "\n")
 	b.WriteString(footerDivider(t, innerWidth))
 	b.WriteString(pad("") + "\n")
-	b.WriteString(pad(t.KeyHint.Render("[esc] back")) + "\n")
+	b.WriteString(pad(t.KeyHint.Render("Esc back")) + "\n")
 	return b.String()
 }
 
@@ -917,7 +916,7 @@ func renderHelpBody(t style.Theme, innerWidth int) string {
 	b.WriteString(pad("") + "\n")
 	b.WriteString(footerDivider(t, innerWidth))
 	b.WriteString(pad("") + "\n")
-	b.WriteString(pad(t.KeyHint.Render("[esc] back")) + "\n")
+	b.WriteString(pad(t.KeyHint.Render("Esc back")) + "\n")
 	return b.String()
 }
 
@@ -949,6 +948,6 @@ func renderStatsBody(t style.Theme, m Model, innerWidth int) string {
 	}
 	b.WriteString(pad("") + "\n")
 	b.WriteString(footerDivider(t, innerWidth))
-	b.WriteString(pad(t.KeyHint.Render("[esc] back")) + "\n")
+	b.WriteString(pad(t.KeyHint.Render("Esc back")) + "\n")
 	return b.String()
 }
