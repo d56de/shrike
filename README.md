@@ -6,7 +6,7 @@
 
 `shrike` is an opinionated macOS TUI that surfaces **suspicious processes** — runaway CPU hogs, zombies, and helper-process herds (think 11 Chrome renderers or 5 Claude sessions) — and lets you act on them with single keystrokes.
 
-Status: pre-alpha — current release **v0.6.1**. Interfaces may still shift before v1.0.
+Status: pre-alpha — current release **v0.7.0**. Interfaces may still shift before v1.0.
 
 ## Install
 
